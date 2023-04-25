@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/search"
+        android:title="Buscar"
+        android:icon="@drawable/ic_search_24"
+        app:showAsAction="always|collapseActionView"
+        app:actionViewClass="androidx.appcompat.widget.SearchView"/>
+    <item
+        android:id="@+id/favoriteList"
+        android:title="Emisoras Favoritas"
+        android:icon="@drawable/ic_favorites_24"
+        app:showAsAction="always|collapseActionView"/>
+    <item android:title="Acerca de"
+        android:id="@+id/info"
+        app:showAsAction="never"/>
+    <item android:title="Contacto"
+        android:id="@+id/contact"
+        app:showAsAction="never"/>
+</menu>
