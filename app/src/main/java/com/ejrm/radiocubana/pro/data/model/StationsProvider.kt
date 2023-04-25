@@ -22,11 +22,13 @@ class StationsProvider @Inject constructor() {
         StationsModel("https://icecast.teveo.cu/ktW3mW74","Radio Metropolitana","La Habana", R.drawable.radio_metropolitana),
         StationsModel("https://icecast.teveo.cu/Jdq3Rbrg","Radio Cadena Habana","La Habana", R.drawable.radio_cadena_habana),
         StationsModel("https://icecast.teveo.cu/fvc4RVRz","Radio Coco","La Habana", R.drawable.radio_coco),
+        StationsModel("https://icecast.teveo.cu/g73XCjCH","Radio Ciudad de La Habana","La Habana", R.drawable.radio_ciudad),
         StationsModel("https://icecast.teveo.cu/Rsrm7P9h","Radio Mayabeque","Mayabeque", R.drawable.radio_mayabeque),
         StationsModel("https://icecast.teveo.cu/KH9tVwrC","Radio Jaruco","Jaruco", R.drawable.radio_jaruco),
         StationsModel("https://icecast.teveo.cu/7vCk4tnh","Radio Camoa","San José de las Lajas", R.drawable.radio_camoa),
         StationsModel("https://icecast.teveo.cu/Nr3dhCLf","La Voz del Litoral","Santa Cruz del Norte", R.drawable.radio_litoral),
         StationsModel("https://icecast.teveo.cu/LsxKNz7b","Radio 26","Matanzas", R.drawable.radio_matanzas),
+        StationsModel("https://icecast.teveo.cu/jWCmP3Fj","Radio Varadero","Varadero", R.drawable.radio_varadero),
         StationsModel("https://icecast.teveo.cu/cgMTxX9V","Radio Victoria de Girón","Jagüey Grande", R.drawable.radio_victoria_giron),
         StationsModel("https://icecast.teveo.cu/sjcNk3Jb","Radio Llanura de Colón","Colón", R.drawable.radio_colon),
         StationsModel("https://icecast.teveo.cu/rvNtC9rC","Radio Ciudad Bandera","Cárdenas", R.drawable.radio_bandera),
@@ -60,6 +62,7 @@ class StationsProvider @Inject constructor() {
         StationsModel("https://icecast.teveo.cu/PPFsPfF4","Radio Cabaniguán","Jobabo", R.drawable.radio_cabaniguan),
         StationsModel("https://icecast.teveo.cu/9RLhkmRH","Radio Granma","Granma", R.drawable.radio_granma),
         StationsModel("https://icecast.teveo.cu/nkz3TCfR","Radio Jiguaní","Jiguaní", R.drawable.radio_jiguani),
+        StationsModel("https://icecast.teveo.cu/wcdnsH3K","Radio Sierra Maestra","Guisa", R.drawable.radio_sierramaestra),
         StationsModel("https://icecast.teveo.cu/7hdNcTbM","Radio Bayamo CMKX","Bayamo", R.drawable.radio_bayamo),
         StationsModel("https://icecast.teveo.cu/KR43FF7C","Radio Ciudad Monumento","Bayamo", R.drawable.radio_monumento),
         StationsModel("https://icecast.teveo.cu/dn9JTKtH","Radio Holguín","Holguín", R.drawable.radio_holguin),
@@ -82,6 +85,7 @@ class StationsProvider @Inject constructor() {
         StationsModel("https://icecast.teveo.cu/MJTK4tnh","Radio Playitas","Playitas", R.drawable.radio_playitas),
         StationsModel("https://icecast.teveo.cu/PKWhw37L","Radio Bahía","Caimanera", R.drawable.radio_bahia),
         StationsModel("https://icecast.teveo.cu/3xW3qJdm","Radio Maisí","Maisí", R.drawable.radio_maisi)
+
 
     )
 }
