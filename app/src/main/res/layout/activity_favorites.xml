@@ -4,8 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/idConstrain"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".view.MainActivity">
+    android:layout_height="match_parent">
     <androidx.appcompat.widget.LinearLayoutCompat
         android:id="@+id/view"
         android:layout_width="match_parent"
@@ -97,6 +96,7 @@
                 android:textSize="20dp"
                 android:textStyle="italic" />
 
+
             <com.google.android.material.floatingactionbutton.FloatingActionButton
                 android:id="@+id/btnPlay"
                 android:layout_width="35dp"
@@ -143,6 +143,7 @@
                 android:tooltipText="Quitar de Favoritos"
                 android:src="@drawable/ic_favorite_24"
                 android:layout_toRightOf="@+id/btnStop"/>
+
 
         </RelativeLayout>
 
