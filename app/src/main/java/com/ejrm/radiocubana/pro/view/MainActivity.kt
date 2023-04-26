@@ -53,13 +53,8 @@ class MainActivity : AppCompatActivity() {
         lateinit var binding: ActivityMainBinding
         var radioService: RadioService? = null
     }
-
     private lateinit var viewModel: MainViewModel
     private lateinit var adapter: StationsAdapter
-    private lateinit var permissioLauncher: ActivityResultLauncher<Array<String>>
-    private var isCallPermissionGranted = false
-    private var isSMSPermissionGranted = false
-
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,14 +62,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
-        permissioLauncher =
-            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permission ->
-                isCallPermissionGranted =
-                    permission[Manifest.permission.CALL_PHONE] ?: isCallPermissionGranted
-                isSMSPermissionGranted =
-                    permission[Manifest.permission.READ_SMS] ?: isSMSPermissionGranted
-            }
-        requestPermission()
         if (isServiceRunning(RadioService::class.java)) radioService!!.stopRadio()
 
         iniRecyclerView()
@@ -233,7 +220,7 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.info -> {
                 val alertdialog = AlertDialog.Builder(this)
-                alertdialog.setTitle("Acerca de RadioCubana")
+                alertdialog.setTitle("Acerca de RadioCubana Pro")
                 alertdialog.setMessage(
                     "Esta aplicación nos permite escuchar las principales emisoras nacionales de radio desde el móvil.\n" +
                             "Requiere estar conectado a internet, pero solo consume del bono de los 300 MB nacionales.\n" +
@@ -266,7 +253,7 @@ class MainActivity : AppCompatActivity() {
                     val intent = Intent(Intent.ACTION_SEND)
                     intent.putExtra(
                         "android.intent.extra.TEXT", "¡Hola!\n" +
-                                " Te estoy invitando a que uses RadioCubana, con ella puedes escuchar las emisoras nacionales desde tu telefono\n" +
+                                " Te estoy invitando a que uses RadioCubana Pro, con ella puedes escuchar las emisoras nacionales desde tu telefono\n" +
                                 "\n" +
                                 "Descárgala de: https://www.apklis.cu/application/com.ejrm.radiocubana.pro"
                     )
@@ -400,27 +387,6 @@ class MainActivity : AppCompatActivity() {
                     startService(stations)
                 }
             }
-        }
-    }
-
-    private fun requestPermission() {
-        isCallPermissionGranted = ContextCompat.checkSelfPermission(
-            baseContext,
-            Manifest.permission.CALL_PHONE
-        ) == PackageManager.PERMISSION_GRANTED
-        isSMSPermissionGranted = ContextCompat.checkSelfPermission(
-            baseContext,
-            Manifest.permission.READ_SMS
-        ) == PackageManager.PERMISSION_GRANTED
-        val request: MutableList<String> = ArrayList()
-        if (!isCallPermissionGranted) {
-            request.add(Manifest.permission.CALL_PHONE)
-        }
-        if (!isSMSPermissionGranted) {
-            request.add(Manifest.permission.READ_SMS)
-        }
-        if (request.isNotEmpty()) {
-            permissioLauncher.launch(request.toTypedArray())
         }
     }
 }
