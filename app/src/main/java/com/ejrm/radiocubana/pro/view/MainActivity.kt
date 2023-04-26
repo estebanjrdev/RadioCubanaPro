@@ -268,7 +268,7 @@ class MainActivity : AppCompatActivity() {
                         "android.intent.extra.TEXT", "¡Hola!\n" +
                                 " Te estoy invitando a que uses RadioCubana, con ella puedes escuchar las emisoras nacionales desde tu telefono\n" +
                                 "\n" +
-                                "Descárgala de: https://www.apklis.cu/application/com.ejrm.radiocubana"
+                                "Descárgala de: https://www.apklis.cu/application/com.ejrm.radiocubana.pro"
                     )
                     intent.type = "text/plain"
                     startActivity(intent)
