@@ -37,7 +37,15 @@ import com.ejrm.radiocubana.pro.databinding.ContactoBinding
 import com.ejrm.radiocubana.pro.services.RadioService
 import com.ejrm.radiocubana.pro.view.adapters.StationsAdapter
 import com.ejrm.radiocubana.pro.viewmodel.MainViewModel
+import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.interstitial.InterstitialAd
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import java.net.HttpURLConnection
@@ -55,6 +63,7 @@ class MainActivity : AppCompatActivity() {
     }
     private lateinit var viewModel: MainViewModel
     private lateinit var adapter: StationsAdapter
+    private var interstitial: InterstitialAd? = null
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,9 +72,12 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
         if (isServiceRunning(RadioService::class.java)) radioService!!.stopRadio()
-
         iniRecyclerView()
         initViewModel()
+        initLoadAds()
+        initAds()
+        initListeners()
+        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true);
         binding.btnPlay.setOnClickListener(View.OnClickListener {
             if (radioService!!.isPlaying()) {
                 radioService!!.controlPlay()
@@ -101,6 +113,57 @@ class MainActivity : AppCompatActivity() {
             }
         })
     }
+    private fun showAds(){
+        interstitial?.show(this)
+    }
+    private fun initListeners() {
+        interstitial?.fullScreenContentCallback = object: FullScreenContentCallback() {
+            override fun onAdDismissedFullScreenContent() {
+            }
+
+            override fun onAdFailedToShowFullScreenContent(p0: AdError) {
+            }
+
+            override fun onAdShowedFullScreenContent() {
+                interstitial = null
+            }
+        }
+    }
+    private fun initAds() {
+        val adRequest = AdRequest.Builder().build()
+        InterstitialAd.load(this, "ca-app-pub-3940256099942544/1033173712", adRequest, object : InterstitialAdLoadCallback(){
+            override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                interstitial = interstitialAd
+            }
+            override fun onAdFailedToLoad(p0: LoadAdError) {
+                interstitial = null
+            }
+        })
+    }
+    private fun initLoadAds() {
+        val adRequest = AdRequest.Builder().build()
+        binding.banner.loadAd(adRequest)
+
+        binding.banner.adListener = object : AdListener(){
+            override fun onAdLoaded() {
+            }
+
+            override fun onAdFailedToLoad(adError : LoadAdError) {
+            }
+
+            override fun onAdOpened() {
+            }
+
+            override fun onAdClicked() {
+            }
+
+            fun onAdLeftApplication() {
+            }
+
+            override fun onAdClosed() {
+            }
+        }
+    }
 
     @RequiresApi(Build.VERSION_CODES.CUPCAKE)
     private fun iniRecyclerView() {
@@ -118,6 +181,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun startService(stations: StationsModel) {
+        showAds()
+        initAds()
         val intent = Intent(this, RadioService::class.java)
         bindService(intent, myConnection, Context.BIND_AUTO_CREATE)
         // Intent(this, RadioService::class.java).also {

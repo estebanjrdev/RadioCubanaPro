@@ -1,58 +1,18 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
-    ext.kotlin_version = "1.6.10"
-    ext.hilt_version = '2.35'
+    ext.kotlin_version = '1.9.0'
+    ext.hilt_version = '2.48'
     repositories {
+        google()
         mavenCentral()
-        maven {
-            url  'https://nexus.xebialabs.com/nexus/content/repositories/public/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven-android'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://maven.prod.uci.cu/nexus/content/repositories/central/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/jcenter.bintray.com-proxy/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/jitpack.io-proxy/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven-google/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/jcenter/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url  "https://nexus.uclv.edu.cu/repository/maven2/"
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven-all'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven-central'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven.google.com'
-            allowInsecureProtocol = true
-        }
+        maven { url 'https://jitpack.io' }
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:4.2.2"
+        classpath 'com.android.tools.build:gradle:8.2.1'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath "com.google.dagger:hilt-android-gradle-plugin:$hilt_version"
+        classpath 'com.google.gms:google-services:4.4.0'
+        classpath 'com.google.firebase:firebase-crashlytics-gradle:2.9.9'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
@@ -61,56 +21,11 @@ buildscript {
 
 allprojects {
     repositories {
+        google()
         mavenCentral()
-        jcenter()
-        maven { url 'https://jitpack.io' }
-        maven {
-            url  'https://nexus.xebialabs.com/nexus/content/repositories/public/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven-android'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://maven.prod.uci.cu/nexus/content/repositories/central/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/jcenter.bintray.com-proxy/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/jitpack.io-proxy/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven-google/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/jcenter/'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url  "https://nexus.uclv.edu.cu/repository/maven2/"
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven-all'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven-central'
-            allowInsecureProtocol = true
-        }
-        maven {
-            url 'http://nexus.prod.uci.cu/repository/maven.google.com'
-            allowInsecureProtocol = true
-        }
     }
 }
 
-task clean(type: Delete) {
+tasks.register('clean', Delete) {
     delete rootProject.buildDir
 }

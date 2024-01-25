@@ -1,5 +1,6 @@
 package com.ejrm.radiocubana.pro.services
 
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -147,10 +148,11 @@ class RadioService : Service() {
         Log.d(TAG, "Servicio Destruido")
     }
 
+    @SuppressLint("ForegroundServiceType")
     @RequiresApi(Build.VERSION_CODES.O)
     fun showNotification(playPauseBtn: Int) {
         val intent = Intent(baseContext, RadioService::class.java)
-        val flag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val flag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             PendingIntent.FLAG_IMMUTABLE
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT

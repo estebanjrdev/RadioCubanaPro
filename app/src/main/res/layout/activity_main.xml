@@ -5,6 +5,7 @@
     android:id="@+id/idConstrain"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    xmlns:ads="http://schemas.android.com/apk/res-auto"
     tools:context=".view.MainActivity">
     <androidx.appcompat.widget.LinearLayoutCompat
         android:id="@+id/view"
@@ -53,7 +54,16 @@
 
         </androidx.appcompat.widget.LinearLayoutCompat>
     </com.facebook.shimmer.ShimmerFrameLayout>
-
+    <com.google.android.gms.ads.AdView
+        android:id="@+id/banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        ads:layout_constraintTop_toTopOf="parent"
+        ads:layout_constraintBottom_toBottomOf="parent"
+        ads:layout_constraintStart_toStartOf="parent"
+        ads:layout_constraintEnd_toEndOf="parent"
+        ads:adSize="BANNER"
+        ads:adUnitId="ca-app-pub-3940256099942544/6300978111"/>
     <LinearLayout
         android:id="@+id/layout_reproduction"
         android:layout_width="match_parent"
