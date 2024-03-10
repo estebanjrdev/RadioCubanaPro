@@ -1,6 +1,7 @@
 package com.ejrm.radiocubana.pro.view
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.app.ProgressDialog
 import android.content.*
@@ -64,9 +65,25 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewModel: MainViewModel
     private lateinit var adapter: StationsAdapter
     private var interstitial: InterstitialAd? = null
-    @RequiresApi(Build.VERSION_CODES.O)
+    private val appPermissionLauncher  = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (result.all { it.value }) {
+            // Todos los permisos solicitados fueron concedidos, realiza acciones adicionales aquí.
+            showMessage("Permisos concedidos.")
+        } else {
+            // Al menos un permiso no fue concedido, puedes manejar esto según la lógica de tu aplicación.
+            showMessage("Debes conceder los permisos para continuar.")
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+
+            val NOTIFICATION_PERMISSION = arrayOf(
+                Manifest.permission.POST_NOTIFICATIONS,  Manifest.permission.POST_NOTIFICATIONS
+            )
+            appPermissionLauncher.launch(NOTIFICATION_PERMISSION)
+
+        }
         requestedOrientation = (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -165,7 +182,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.CUPCAKE)
     private fun iniRecyclerView() {
         binding.recycler.layoutManager = LinearLayoutManager(this)
         adapter = StationsAdapter(EmisoraItemClickListener())
@@ -256,6 +272,9 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
+    private fun showMessage(message: String) {
+        Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG).show()
+    }
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
         val search = menu!!.findItem(R.id.search)

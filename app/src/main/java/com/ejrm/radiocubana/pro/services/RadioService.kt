@@ -1,6 +1,5 @@
 package com.ejrm.radiocubana.pro.services
 
-import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -35,7 +34,6 @@ class RadioService : Service() {
 
     fun isPlaying() = mediaPlayer!!.isPlaying
 
-    @RequiresApi(Build.VERSION_CODES.O)
     fun controlPlayNotifi() {
         mediaPlayer?.let {
             if (it.isPlaying) {
@@ -50,7 +48,7 @@ class RadioService : Service() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
+
     fun controlPlay() {
         mediaPlayer?.let {
             if (it.isPlaying) {
@@ -116,7 +114,6 @@ class RadioService : Service() {
     }
 
     override fun onBind(p0: Intent?): IBinder {
-        mediaSession = MediaSessionCompat(baseContext, TAG)
         return myBinder
     }
 
@@ -124,19 +121,25 @@ class RadioService : Service() {
         fun currentService(): RadioService = this@RadioService
     }
 
+    @RequiresApi(Build.VERSION_CODES.N)
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Servicio Creado")
+        mediaSession = MediaSessionCompat(baseContext, TAG)
         createNotificationChannel()
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (!notificationManager.areNotificationsEnabled()) {
+            Log.d("NOTIFI", "Notificacion Iniciada")
+        }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         url = intent?.getStringExtra("URL")
         name = intent?.getStringExtra("NAME")
-        imagen = intent?.getIntExtra("IMAGE", R.mipmap.ic_radio)
+        imagen = intent?.getIntExtra("IMAGE", R.mipmap.ic_launcher_round)
         url?.let { initReproduction(it, baseContext) }
-        mediaSession = MediaSessionCompat(baseContext, TAG)
+       // mediaSession = MediaSessionCompat(baseContext, TAG)
         Log.d(TAG, "Intent Iniciado")
         //showNotification(R.drawable.ic_pause_24)
         return START_STICKY
@@ -148,11 +151,10 @@ class RadioService : Service() {
         Log.d(TAG, "Servicio Destruido")
     }
 
-    @SuppressLint("ForegroundServiceType")
-    @RequiresApi(Build.VERSION_CODES.O)
+
     fun showNotification(playPauseBtn: Int) {
         val intent = Intent(baseContext, RadioService::class.java)
-        val flag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val flag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             PendingIntent.FLAG_IMMUTABLE
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
@@ -167,7 +169,7 @@ class RadioService : Service() {
         val notification = NotificationCompat
             .Builder(this, CHANNEL_ID)
             .setContentText(name)
-            .setSmallIcon(R.mipmap.ic_radio)
+            .setSmallIcon(R.mipmap.ic_launcher_round)
             .setLargeIcon(BitmapFactory.decodeResource(resources, imagen!!))
             .setStyle(
                 androidx.media.app.NotificationCompat.MediaStyle().setShowActionsInCompactView()
@@ -196,7 +198,7 @@ class RadioService : Service() {
         }
     }
 
-    fun removeNotification() {
+    private fun removeNotification() {
         // stopSelf()
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
