@@ -30,12 +30,14 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.ejrm.radiocubana.pro.BuildConfig
 import com.ejrm.radiocubana.pro.R
 import com.ejrm.radiocubana.pro.data.model.StationsModel
 import com.ejrm.radiocubana.pro.data.model.StationsProvider
 import com.ejrm.radiocubana.pro.databinding.ActivityMainBinding
 import com.ejrm.radiocubana.pro.databinding.ContactoBinding
 import com.ejrm.radiocubana.pro.services.RadioService
+import com.ejrm.radiocubana.pro.util.PlayStoreRatingHelper
 import com.ejrm.radiocubana.pro.view.adapters.StationsAdapter
 import com.ejrm.radiocubana.pro.viewmodel.MainViewModel
 import com.google.android.gms.ads.AdError
@@ -47,6 +49,7 @@ import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import java.net.HttpURLConnection
@@ -55,38 +58,40 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
-    @Inject
-    lateinit var stationsProvider: StationsProvider
+
     lateinit var station: StationsModel
+
     companion object {
         lateinit var binding: ActivityMainBinding
         var radioService: RadioService? = null
     }
+
     private lateinit var viewModel: MainViewModel
     private lateinit var adapter: StationsAdapter
     private var interstitial: InterstitialAd? = null
-    private val appPermissionLauncher  = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        if (result.all { it.value }) {
-            // Todos los permisos solicitados fueron concedidos, realiza acciones adicionales aquí.
-            showMessage("Permisos concedidos.")
-        } else {
-            // Al menos un permiso no fue concedido, puedes manejar esto según la lógica de tu aplicación.
-            showMessage("Debes conceder los permisos para continuar.")
+    private val appPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            if (!result.all { it.value }) {
+                showMessage("Debes conceder los permisos para continuar.")
+            }
         }
-    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        requestedOrientation = (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 
             val NOTIFICATION_PERMISSION = arrayOf(
-                Manifest.permission.POST_NOTIFICATIONS,  Manifest.permission.POST_NOTIFICATIONS
+                Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.POST_NOTIFICATIONS
             )
             appPermissionLauncher.launch(NOTIFICATION_PERMISSION)
 
         }
-        requestedOrientation = (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+
+        checkForUpdates()
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
         if (isServiceRunning(RadioService::class.java)) radioService!!.stopRadio()
         iniRecyclerView()
@@ -130,11 +135,42 @@ class MainActivity : AppCompatActivity() {
             }
         })
     }
-    private fun showAds(){
+
+    fun checkForUpdates() {
+        val remoteConfig = FirebaseRemoteConfig.getInstance()
+        val currentVersion = packageManager.getPackageInfo(packageName, 0).versionCode
+
+        remoteConfig.fetchAndActivate().addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val latestAppVersion = remoteConfig.getLong("latest_app_version")
+
+                if (latestAppVersion > currentVersion) {
+                    showUpdateDialog()
+                }
+            }
+        }
+    }
+
+    private fun showUpdateDialog() {
+        val alertdialog = AlertDialog.Builder(this)
+        alertdialog.setTitle("Nueva versión")
+        alertdialog.setIcon(R.mipmap.ic_launcher_round)
+        alertdialog.setMessage("Por favor, actualice la aplicación.")
+        alertdialog.setCancelable(false)
+        alertdialog.setPositiveButton("Actualizar") { _, _ ->
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")))
+        }
+        val alert = alertdialog.create()
+        alert.setCanceledOnTouchOutside(false)
+        alert.show()
+    }
+
+    private fun showAds() {
         interstitial?.show(this)
     }
+
     private fun initListeners() {
-        interstitial?.fullScreenContentCallback = object: FullScreenContentCallback() {
+        interstitial?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
             }
 
@@ -146,26 +182,33 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
     private fun initAds() {
         val adRequest = AdRequest.Builder().build()
-        InterstitialAd.load(this, "ca-app-pub-3940256099942544/1033173712", adRequest, object : InterstitialAdLoadCallback(){
-            override fun onAdLoaded(interstitialAd: InterstitialAd) {
-                interstitial = interstitialAd
-            }
-            override fun onAdFailedToLoad(p0: LoadAdError) {
-                interstitial = null
-            }
-        })
+        InterstitialAd.load(
+            this,
+            "ca-app-pub-3706009063515657/3663170922",
+            adRequest,
+            object : InterstitialAdLoadCallback() {
+                override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                    interstitial = interstitialAd
+                }
+
+                override fun onAdFailedToLoad(p0: LoadAdError) {
+                    interstitial = null
+                }
+            })
     }
+
     private fun initLoadAds() {
         val adRequest = AdRequest.Builder().build()
         binding.banner.loadAd(adRequest)
 
-        binding.banner.adListener = object : AdListener(){
+        binding.banner.adListener = object : AdListener() {
             override fun onAdLoaded() {
             }
 
-            override fun onAdFailedToLoad(adError : LoadAdError) {
+            override fun onAdFailedToLoad(adError: LoadAdError) {
             }
 
             override fun onAdOpened() {
@@ -219,7 +262,6 @@ class MainActivity : AppCompatActivity() {
         binding.title.text = stations.name
         binding.title.isSelected = true
         binding.btnPlay.setImageResource(R.drawable.ic_pause_24)
-        //  }
     }
 
     @RequiresPermission(anyOf = [Manifest.permission.ACCESS_NETWORK_STATE, Manifest.permission.INTERNET])
@@ -275,6 +317,7 @@ class MainActivity : AppCompatActivity() {
     private fun showMessage(message: String) {
         Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG).show()
     }
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
         val search = menu!!.findItem(R.id.search)
@@ -302,21 +345,22 @@ class MainActivity : AppCompatActivity() {
                 val intent = Intent(this, FavoriteActivity::class.java)
                 startActivity(intent)
             }
+
             R.id.info -> {
                 val alertdialog = AlertDialog.Builder(this)
                 alertdialog.setTitle("Acerca de RadioCubana Pro")
                 alertdialog.setMessage(
                     "Esta aplicación nos permite escuchar las principales emisoras nacionales de radio desde el móvil.\n" +
-                            "Requiere estar conectado a internet, pero solo consume del bono de los 300 MB nacionales.\n" +
-                            "Siempre debe recordar que en caso de que habrá alguna emisora y no este disponible es porque hay emisoras que no están al aire las 24 horas del día, se recomienda tener preferiblemente una conexión 3G o 4G  para que no se le detenga la reproducción del audio.\n" +
-                            "Con RadioCubana podemos estar todo el tiempo informado de las últimas noticias, escuchar música y disfrutar de los partidos de béisbol de la serie nacional etc.\n" +
-                            "La aplicación utiliza el icecast de teveo por lo que está sujeta a las políticas de privacidad de dicha plataforma."
+                            "Requiere estar conectado a internet.\n" +
+                            "Siempre debe recordar que en caso de que habrá alguna emisora y no este disponible es porque hay emisoras que no están al aire las 24 horas del día.\n" +
+                            "Con Radio Cubana podemos estar todo el tiempo informado de las últimas noticias, escuchar música y disfrutar de los partidos de béisbol de la serie nacional etc."
                 )
                 alertdialog.setPositiveButton("Aceptar") { _, _ ->
 
                 }
                 alertdialog.show()
             }
+
             R.id.contact -> {
                 val bindingcontact = ContactoBinding.inflate(layoutInflater)
                 val alertdialog = AlertDialog.Builder(this)
@@ -337,9 +381,9 @@ class MainActivity : AppCompatActivity() {
                     val intent = Intent(Intent.ACTION_SEND)
                     intent.putExtra(
                         "android.intent.extra.TEXT", "¡Hola!\n" +
-                                " Te estoy invitando a que uses RadioCubana Pro, con ella puedes escuchar las emisoras nacionales desde tu telefono\n" +
+                                "Te estoy invitando a que uses Radio Cubana, con ella puedes escuchar las emisoras nacionales desde tu telefono\n" +
                                 "\n" +
-                                "Descárgala de: https://www.apklis.cu/application/com.ejrm.radiocubana.pro"
+                                "Descárgala de: https://play.google.com/store/apps/details?id=com.ejrm.radiocubana.pro"
                     )
                     intent.type = "text/plain"
                     startActivity(intent)
@@ -347,16 +391,19 @@ class MainActivity : AppCompatActivity() {
                 bindingcontact.layouttelegram.setOnClickListener(View.OnClickListener {
                     openLink(Uri.parse("https://t.me/susoluciones"))
                 })
-                bindingcontact.layoutfacebook.setOnClickListener(View.OnClickListener {
-                    openLink(Uri.parse("https://www.facebook.com/susoluciones"))
-                })
-                bindingcontact.layoutweb.setOnClickListener(View.OnClickListener {
-                    openLink(Uri.parse("http://susoluciones.125mb.com"))
-                })
+
                 alertdialog.setPositiveButton("Aceptar") { _, _ ->
 
                 }
                 alertdialog.show()
+            }
+
+            R.id.valoracion -> {
+                PlayStoreRatingHelper.openPlayStoreForRating(this)
+            }
+
+            R.id.politica -> {
+                openLink(Uri.parse("https://www.app-privacy-policy.com/live.php?token=fUsNDhObFBDnkj2oAGyPoCvnmP8KqnCl"))
             }
         }
         return super.onOptionsItemSelected(item)
@@ -371,20 +418,13 @@ class MainActivity : AppCompatActivity() {
 
         val connectivityManager =
             context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val network = connectivityManager.activeNetwork ?: return false
-            val activeNetwork = connectivityManager.getNetworkCapabilities(network) ?: return false
+        val network = connectivityManager.activeNetwork ?: return false
+        val activeNetwork = connectivityManager.getNetworkCapabilities(network) ?: return false
 
-            return when {
-                activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
-                activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
-                else -> false
-            }
-        } else {
-            @Suppress("DEPRECATION") val networkInfo =
-                connectivityManager.activeNetworkInfo ?: return false
-            @Suppress("DEPRECATION")
-            return networkInfo.isConnected
+        return when {
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
+            else -> false
         }
     }
 

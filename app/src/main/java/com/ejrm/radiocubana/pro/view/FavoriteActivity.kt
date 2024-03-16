@@ -29,10 +29,19 @@ import com.ejrm.radiocubana.pro.data.model.StationsModel
 import com.ejrm.radiocubana.pro.databinding.ActivityFavoritesBinding
 import com.ejrm.radiocubana.pro.databinding.ContactoBinding
 import com.ejrm.radiocubana.pro.services.RadioService
+import com.ejrm.radiocubana.pro.util.PlayStoreRatingHelper
 import com.ejrm.radiocubana.pro.view.adapters.StationsAdapter
 import com.ejrm.radiocubana.pro.viewmodel.FavoriteViewModel
 import com.ejrm.radiocubana.pro.viewmodel.MainViewModel
+import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.interstitial.InterstitialAd
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import java.net.HttpURLConnection
@@ -41,6 +50,7 @@ import java.net.URL
 @AndroidEntryPoint
 class FavoriteActivity : AppCompatActivity() {
     lateinit var station: StationsModel
+    private var interstitial: InterstitialAd? = null
     companion object {
         lateinit var binding: ActivityFavoritesBinding
         var radioService: RadioService? = null
@@ -53,14 +63,18 @@ class FavoriteActivity : AppCompatActivity() {
         requestedOrientation = (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
         binding = ActivityFavoritesBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        initLoadAds()
+        initListeners()
         supportActionBar!!.setDisplayShowHomeEnabled(true)
         supportActionBar!!.setDisplayHomeAsUpEnabled(true)
+        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true);
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
 
         // if (isServiceRunning(RadioService::class.java)) radioService!!.stopRadio()
 
         iniRecyclerView()
         initViewModel()
+
         binding.btnPlay.setOnClickListener(View.OnClickListener {
             if (radioService!!.isPlaying()) {
                 radioService!!.controlPlay()
@@ -100,6 +114,47 @@ class FavoriteActivity : AppCompatActivity() {
         binding.recycler.layoutManager = LinearLayoutManager(this)
         adapter = StationsAdapter(EmisoraItemClickListener())
         binding.recycler.adapter = adapter
+    }
+
+
+    private fun initListeners() {
+        interstitial?.fullScreenContentCallback = object : FullScreenContentCallback() {
+            override fun onAdDismissedFullScreenContent() {
+            }
+
+            override fun onAdFailedToShowFullScreenContent(p0: AdError) {
+            }
+
+            override fun onAdShowedFullScreenContent() {
+                interstitial = null
+            }
+        }
+    }
+
+
+    private fun initLoadAds() {
+        val adRequest = AdRequest.Builder().build()
+        FavoriteActivity.binding.banner.loadAd(adRequest)
+
+        FavoriteActivity.binding.banner.adListener = object : AdListener() {
+            override fun onAdLoaded() {
+            }
+
+            override fun onAdFailedToLoad(adError: LoadAdError) {
+            }
+
+            override fun onAdOpened() {
+            }
+
+            override fun onAdClicked() {
+            }
+
+            fun onAdLeftApplication() {
+            }
+
+            override fun onAdClosed() {
+            }
+        }
     }
 
     private fun initViewModel(){
@@ -178,72 +233,13 @@ class FavoriteActivity : AppCompatActivity() {
         return false
     }
 
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.favorite_menu, menu)
-        return super.onCreateOptionsMenu(menu)
-    }
+
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             android.R.id.home ->{
                 finish()
                 return true
-            }
-            R.id.info -> {
-                val alertdialog = AlertDialog.Builder(this)
-                alertdialog.setTitle("Acerca de RadioCubana")
-                alertdialog.setMessage(
-                    "Esta aplicación nos permite escuchar las principales emisoras nacionales de radio desde el móvil.\n" +
-                            "Requiere estar conectado a internet, pero solo consume del bono de los 300 MB nacionales.\n" +
-                            "Siempre debe recordar que en caso de que habrá alguna emisora y no este disponible es porque hay emisoras que no están al aire las 24 horas del día, se recomienda tener preferiblemente una conexión 3G o 4G  para que no se le detenga la reproducción del audio.\n" +
-                            "Con RadioCubana podemos estar todo el tiempo informado de las últimas noticias, escuchar música y disfrutar de los partidos de béisbol de la serie nacional etc.\n" +
-                            "La aplicación utiliza el icecast de teveo por lo que está sujeta a las políticas de privacidad de dicha plataforma."
-                )
-                alertdialog.setPositiveButton("Aceptar") { _, _ ->
-
-                }
-                alertdialog.show()
-            }
-            R.id.contact -> {
-                val bindingcontact = ContactoBinding.inflate(layoutInflater)
-                val alertdialog = AlertDialog.Builder(this)
-                alertdialog.setTitle("Contacto")
-                alertdialog.setView(bindingcontact.root)
-                bindingcontact.layoutemail.setOnClickListener(View.OnClickListener {
-                    val intent = Intent(Intent.ACTION_SEND)
-                    intent.data = Uri.parse("Email")
-                    val array_email = arrayOf("susoluciones.software@gmail.com")
-                    intent.putExtra(Intent.EXTRA_EMAIL, array_email)
-                    intent.putExtra(Intent.EXTRA_SUBJECT, "suSoluciones")
-                    intent.putExtra(Intent.EXTRA_TEXT, "")
-                    intent.type = "message/rfc822"
-                    val a = Intent.createChooser(intent, "Launch Email")
-                    startActivity(a)
-                })
-                bindingcontact.layoutshare.setOnClickListener(View.OnClickListener {
-                    val intent = Intent(Intent.ACTION_SEND)
-                    intent.putExtra(
-                        "android.intent.extra.TEXT", "¡Hola!\n" +
-                                " Te estoy invitando a que uses RadioCubana, con ella puedes escuchar las emisoras nacionales desde tu telefono\n" +
-                                "\n" +
-                                "Descárgala de: https://www.apklis.cu/application/com.ejrm.radiocubana"
-                    )
-                    intent.type = "text/plain"
-                    startActivity(intent)
-                })
-                bindingcontact.layouttelegram.setOnClickListener(View.OnClickListener {
-                    openLink(Uri.parse("https://t.me/susoluciones"))
-                })
-                bindingcontact.layoutfacebook.setOnClickListener(View.OnClickListener {
-                    openLink(Uri.parse("https://www.facebook.com/susoluciones"))
-                })
-                bindingcontact.layoutweb.setOnClickListener(View.OnClickListener {
-                    openLink(Uri.parse("http://susoluciones.125mb.com"))
-                })
-                alertdialog.setPositiveButton("Aceptar") { _, _ ->
-
-                }
-                alertdialog.show()
             }
         }
         return super.onOptionsItemSelected(item)

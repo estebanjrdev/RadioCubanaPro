@@ -18,4 +18,10 @@
     <item android:title="Contacto"
         android:id="@+id/contact"
         app:showAsAction="never"/>
+    <item android:title="Califica ahora"
+        android:id="@+id/valoracion"
+        app:showAsAction="never"/>
+    <item android:title="Política de privacidad"
+        android:id="@+id/politica"
+        app:showAsAction="never"/>
 </menu>

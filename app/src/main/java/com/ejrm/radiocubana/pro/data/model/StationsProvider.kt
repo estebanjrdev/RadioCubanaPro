@@ -41,7 +41,7 @@ class StationsProvider @Inject constructor() {
         StationsModel("https://icecast.teveo.cu/qpMCfv3f","Radio Aguada","Aguada de Pasajeros", R.drawable.radio_aguada),
         StationsModel("https://icecast.teveo.cu/NqWrgw7j","Radio Sancti Spíritus","Sancti Spíritus", R.drawable.radio_santispiritus),
         StationsModel("https://icecast.teveo.cu/XzFz3xdK","Radio Fomento","Fomento", R.drawable.radio_fomento),
-        StationsModel("https://icecast.teveo.cu/XK3Ttwmj","Radio Radio Cabaiguán","Cabaiguán", R.drawable.radio_cabaiguan),
+        StationsModel("https://icecast.teveo.cu/XK3Ttwmj","Radio Cabaiguán","Cabaiguán", R.drawable.radio_cabaiguan),
         StationsModel("https://icecast.teveo.cu/srJ4vqkv","Radio Caibarién","Caibarién", R.drawable.radio_caibarien),
         StationsModel("https://icecast.teveo.cu/F9tgnJVT","Radio Surco","Ciego de Ávila", R.drawable.radio_surco),
         StationsModel("https://icecast.teveo.cu/wnW3hTrw","Radio Placetas","Placetas", R.drawable.radio_placetas),

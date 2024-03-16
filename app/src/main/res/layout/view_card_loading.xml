@@ -8,9 +8,9 @@
     android:layout_marginTop="@dimen/recycler_item_margin_top"
     android:layout_marginRight="@dimen/recycler_item_margin"
     android:layout_marginBottom="@dimen/recycler_item_margin_bottom"
+    android:clickable="true"
     android:focusable="true"
     android:foreground="?android:attr/selectableItemBackground"
-    android:clickable="true"
     card_view:cardCornerRadius="5dp"
     card_view:cardElevation="5dp"
     card_view:cardUseCompatPadding="true">
@@ -42,8 +42,8 @@
                 android:layout_height="16dp"
                 android:layout_marginLeft="15dp"
                 android:layout_marginTop="15dp"
-                android:background="#c8c8c9"
                 android:layout_toRightOf="@+id/item_logo"
+                android:background="#c8c8c9"
                 android:textColor="#222"
                 android:textSize="18sp" />
 
@@ -57,10 +57,10 @@
                 android:id="@+id/item_descrip"
                 android:layout_width="match_parent"
                 android:layout_height="8dp"
-                android:lineSpacingExtra="6dp"
                 android:layout_marginTop="5dp"
-                android:textColor="#888"
                 android:background="#c8c8c9"
+                android:lineSpacingExtra="6dp"
+                android:textColor="#888"
                 android:textSize="15sp" />
 
 

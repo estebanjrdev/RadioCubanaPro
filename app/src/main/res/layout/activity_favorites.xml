@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:ads="http://schemas.android.com/apk/res-auto"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/idConstrain"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
+
     <androidx.appcompat.widget.LinearLayoutCompat
         android:id="@+id/view"
         android:layout_width="match_parent"
@@ -18,11 +20,12 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:padding="3dp"
-            android:scrollbars="vertical"/>
+            android:scrollbars="vertical" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
     <com.facebook.shimmer.ShimmerFrameLayout
+        android:id="@+id/shimmerFrameLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:shimmer_auto_start="true"
@@ -53,6 +56,18 @@
         </androidx.appcompat.widget.LinearLayoutCompat>
     </com.facebook.shimmer.ShimmerFrameLayout>
 
+    <com.google.android.gms.ads.AdView
+        android:id="@+id/banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        ads:adSize="BANNER"
+        ads:adUnitId="ca-app-pub-3706009063515657/8597354282"
+        ads:layout_constraintVertical_bias="0"
+        ads:layout_constraintBottom_toTopOf="@+id/layout_reproduction"
+        ads:layout_constraintEnd_toEndOf="parent"
+        ads:layout_constraintStart_toStartOf="parent"
+        ads:layout_constraintTop_toTopOf="@+id/shimmerFrameLayout" />
+
     <LinearLayout
         android:id="@+id/layout_reproduction"
         android:layout_width="match_parent"
@@ -60,12 +75,13 @@
         android:background="@color/transparent"
         android:orientation="vertical"
         android:visibility="invisible"
-        tools:visibility="visible"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
+        app:layout_constraintStart_toStartOf="parent"
+        tools:visibility="visible">
 
         <RelativeLayout
+            android:id="@+id/relativelayout_reproduction"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
@@ -127,10 +143,10 @@
                 android:layout_height="30dp"
                 android:layout_centerVertical="true"
                 android:layout_marginLeft="10dp"
+                android:layout_toRightOf="@+id/btnStop"
                 android:clickable="true"
-                android:tooltipText="Agregar a Favoritos"
                 android:src="@drawable/ic_favorite_border_24"
-                android:layout_toRightOf="@+id/btnStop"/>
+                android:tooltipText="Agregar a Favoritos" />
 
             <ImageView
                 android:id="@+id/idFavoriteRed"
@@ -138,11 +154,11 @@
                 android:layout_height="30dp"
                 android:layout_centerVertical="true"
                 android:layout_marginLeft="10dp"
+                android:layout_toRightOf="@+id/btnStop"
                 android:clickable="true"
-                android:visibility="gone"
-                android:tooltipText="Quitar de Favoritos"
                 android:src="@drawable/ic_favorite_24"
-                android:layout_toRightOf="@+id/btnStop"/>
+                android:tooltipText="Quitar de Favoritos"
+                android:visibility="gone" />
 
 
         </RelativeLayout>

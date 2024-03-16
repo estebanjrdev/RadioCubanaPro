@@ -10,9 +10,9 @@
               <option name="connection">
                 <ConnectionSetting>
                   <option name="appId" value="com.ejrm.radiocubana.pro" />
-                  <option name="mobileSdkAppId" value="1:1077009513676:android:9d5496ba271673ce231669" />
-                  <option name="projectId" value="radiocubana-pro" />
-                  <option name="projectNumber" value="1077009513676" />
+                  <option name="mobileSdkAppId" value="1:22820517142:android:2f5e9b2a6d9a7797900c37" />
+                  <option name="projectId" value="radio-cubana" />
+                  <option name="projectNumber" value="22820517142" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
