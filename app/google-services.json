@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "22820517142",
+    "project_id": "radio-cubana",
+    "storage_bucket": "radio-cubana.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:22820517142:android:2f5e9b2a6d9a7797900c37",
+        "android_client_info": {
+          "package_name": "com.ejrm.radiocubana.pro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDdAbC50_CW2tUQUj7jfT8DR40xo3JQpo0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
