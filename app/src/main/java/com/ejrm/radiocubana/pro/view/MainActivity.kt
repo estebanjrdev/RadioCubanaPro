@@ -15,10 +15,14 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
+import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.widget.SearchView
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -65,7 +69,7 @@ class MainActivity : AppCompatActivity() {
         lateinit var binding: ActivityMainBinding
         var radioService: RadioService? = null
     }
-
+    private var lastBackPressedTime: Long = 0
     private lateinit var viewModel: MainViewModel
     private lateinit var adapter: StationsAdapter
     private var interstitial: InterstitialAd? = null
@@ -76,12 +80,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         requestedOrientation = (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 
             val NOTIFICATION_PERMISSION = arrayOf(
@@ -96,17 +102,18 @@ class MainActivity : AppCompatActivity() {
         if (isServiceRunning(RadioService::class.java)) radioService!!.stopRadio()
         iniRecyclerView()
         initViewModel()
-        initLoadAds()
-        initAds()
-        initListeners()
-        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true);
+      //  initLoadAds()
+       // initListeners()
+      //  initAds()
         binding.btnPlay.setOnClickListener(View.OnClickListener {
             if (radioService!!.isPlaying()) {
                 radioService!!.controlPlay()
                 binding.btnPlay.setImageResource(R.drawable.ic_play_24)
+                binding.btnPlay.contentDescription = "Reproducir"
             } else {
                 radioService!!.controlPlay()
                 binding.btnPlay.setImageResource(R.drawable.ic_pause_24)
+                binding.btnPlay.contentDescription = "Detener"
             }
         })
 
@@ -123,7 +130,7 @@ class MainActivity : AppCompatActivity() {
                 viewModel.addFavorite(station)
                 binding.idFavoriteWhite.isVisible = false
                 binding.idFavoriteRed.isVisible = true
-                //binding.idFavoriteRed.startAnimation(anim)
+                binding.idFavoriteRed.contentDescription = "Eliminar de Favoritos"
             }
         })
         binding.idFavoriteRed.setOnClickListener(View.OnClickListener {
@@ -131,10 +138,28 @@ class MainActivity : AppCompatActivity() {
                 viewModel.deleteFavorite(station)
                 binding.idFavoriteRed.isVisible = false
                 binding.idFavoriteWhite.isVisible = true
+                binding.idFavoriteWhite.contentDescription = "Agregar a Favoritos"
                 //binding.idFavoriteWhite.startAnimation(anim)
             }
         })
+
+        val onBackPressedCallback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val currentTime = System.currentTimeMillis()
+                val elapsedTime = currentTime - lastBackPressedTime
+
+                if (elapsedTime < 2000) {
+                    finish() // Cierra la actividad actual
+                } else {
+                    Toast.makeText(this@MainActivity, "Presione nuevamente para salir", Toast.LENGTH_SHORT).show()
+                    lastBackPressedTime = currentTime
+                }
+            }
+        }
+
+        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
     }
+
 
     fun checkForUpdates() {
         val remoteConfig = FirebaseRemoteConfig.getInstance()
@@ -165,13 +190,11 @@ class MainActivity : AppCompatActivity() {
         alert.show()
     }
 
-    private fun showAds() {
-        interstitial?.show(this)
-    }
-
     private fun initListeners() {
         interstitial?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
+                val intent = Intent(baseContext, FavoriteActivity::class.java)
+                startActivity(intent)
             }
 
             override fun onAdFailedToShowFullScreenContent(p0: AdError) {
@@ -192,6 +215,7 @@ class MainActivity : AppCompatActivity() {
             object : InterstitialAdLoadCallback() {
                 override fun onAdLoaded(interstitialAd: InterstitialAd) {
                     interstitial = interstitialAd
+                    interstitial?.show(this@MainActivity)
                 }
 
                 override fun onAdFailedToLoad(p0: LoadAdError) {
@@ -240,7 +264,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun startService(stations: StationsModel) {
-        showAds()
         initAds()
         val intent = Intent(this, RadioService::class.java)
         bindService(intent, myConnection, Context.BIND_AUTO_CREATE)
@@ -342,13 +365,15 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.favoriteList -> {
-                val intent = Intent(this, FavoriteActivity::class.java)
-                startActivity(intent)
+                initAds()
+                initListeners()
+
+
             }
 
             R.id.info -> {
                 val alertdialog = AlertDialog.Builder(this)
-                alertdialog.setTitle("Acerca de RadioCubana Pro")
+                alertdialog.setTitle("Acerca de Radio Cubana")
                 alertdialog.setMessage(
                     "Esta aplicación nos permite escuchar las principales emisoras nacionales de radio desde el móvil.\n" +
                             "Requiere estar conectado a internet.\n" +
@@ -401,7 +426,6 @@ class MainActivity : AppCompatActivity() {
             R.id.valoracion -> {
                 PlayStoreRatingHelper.openPlayStoreForRating(this)
             }
-
             R.id.politica -> {
                 openLink(Uri.parse("https://www.app-privacy-policy.com/live.php?token=fUsNDhObFBDnkj2oAGyPoCvnmP8KqnCl"))
             }
@@ -428,9 +452,40 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        Toast.makeText(this, "onStart", Toast.LENGTH_SHORT).show()
+    }
+
     override fun onResume() {
         super.onResume()
+        Toast.makeText(this@MainActivity, "onResume", Toast.LENGTH_SHORT).show()
         registerReceiver(estadoRed, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+    }
+
+    override fun onPause() {
+        Toast.makeText(this, "onPause", Toast.LENGTH_SHORT).show()
+        super.onPause()
+    }
+    override fun onStop() {
+        Toast.makeText(this, "onStop", Toast.LENGTH_SHORT).show()
+        super.onStop()
+       // Toast.makeText(this@MainActivity, "onStop", Toast.LENGTH_SHORT).show()
+
+        //   radioService?.let {
+    //        it.showNotification(R.drawable.ic_pause_24)
+     //   }
+        Log.d("Notifi","onStop")
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        Toast.makeText(this@MainActivity, "onRestart", Toast.LENGTH_SHORT).show()
+
+        //   radioService?.let {
+     //       it.removeNotification()
+     //   }
+        Log.d("Notifi","onRestart")
     }
 
     private val estadoRed = object : BroadcastReceiver() {
@@ -473,8 +528,8 @@ class MainActivity : AppCompatActivity() {
     private val myConnection = object : ServiceConnection {
         override fun onServiceConnected(p0: ComponentName?, p1: IBinder?) {
             if (radioService == null) {
-                val binder = p1 as RadioService.MyBinder
-                radioService = binder.currentService()
+                val binder = p1 as? RadioService.MyBinder
+                radioService = binder?.currentService()
             }
         }
 
@@ -486,10 +541,10 @@ class MainActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onDestroy() {
         super.onDestroy()
-        radioService.let {
-            it!!.showNotification(R.drawable.ic_pause_24)
+        Toast.makeText(this, "onDestroy", Toast.LENGTH_SHORT).show()
+        radioService?.let {
+            it.showNotification(R.drawable.ic_pause_24)
         }
-
         Log.d("RadioService", "Avtivity Destruida")
     }
 

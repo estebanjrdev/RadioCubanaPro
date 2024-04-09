@@ -63,11 +63,12 @@ class FavoriteActivity : AppCompatActivity() {
         requestedOrientation = (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
         binding = ActivityFavoritesBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true);
         initLoadAds()
         initListeners()
         supportActionBar!!.setDisplayShowHomeEnabled(true)
         supportActionBar!!.setDisplayHomeAsUpEnabled(true)
-        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true);
+
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
 
         // if (isServiceRunning(RadioService::class.java)) radioService!!.stopRadio()
@@ -79,9 +80,11 @@ class FavoriteActivity : AppCompatActivity() {
             if (radioService!!.isPlaying()) {
                 radioService!!.controlPlay()
                 binding.btnPlay.setImageResource(R.drawable.ic_play_24)
+                binding.btnPlay.contentDescription = "Reproducir"
             } else {
                 radioService!!.controlPlay()
                 binding.btnPlay.setImageResource(R.drawable.ic_pause_24)
+                binding.btnPlay.contentDescription = "Detener"
             }
         })
 
@@ -97,6 +100,7 @@ class FavoriteActivity : AppCompatActivity() {
                 viewModel.addFavorite(station)
                 binding.idFavoriteWhite.isVisible = false
                 binding.idFavoriteRed.isVisible = true
+                binding.idFavoriteRed.contentDescription = "Eliminar de Favoritos"
             }
         })
         binding.idFavoriteRed.setOnClickListener(View.OnClickListener {
@@ -104,6 +108,7 @@ class FavoriteActivity : AppCompatActivity() {
                 viewModel.deleteFavorite(station)
                 binding.idFavoriteRed.isVisible = false
                 binding.idFavoriteWhite.isVisible = true
+                binding.idFavoriteWhite.contentDescription = "Agregar a Favoritos"
             }
         })
 
@@ -271,10 +276,17 @@ class FavoriteActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        Toast.makeText(this, "onStart", Toast.LENGTH_SHORT).show()
+    }
+
     override fun onResume() {
         super.onResume()
         registerReceiver(estadoRed, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
     }
+
+
 
     override fun onBackPressed() {
         super.onBackPressed()
@@ -330,11 +342,40 @@ class FavoriteActivity : AppCompatActivity() {
         }
     }
 
+
+
+
+    override fun onPause() {
+        super.onPause()
+        iniRecyclerView()
+        initViewModel()
+    }
+    override fun onStop() {
+        Toast.makeText(this, "onStop", Toast.LENGTH_SHORT).show()
+        super.onStop()
+        // Toast.makeText(this@MainActivity, "onStop", Toast.LENGTH_SHORT).show()
+
+        //   radioService?.let {
+        //        it.showNotification(R.drawable.ic_pause_24)
+        //   }
+        Log.d("Notifi","onStop")
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        Toast.makeText(this, "onRestart", Toast.LENGTH_SHORT).show()
+
+        //   radioService?.let {
+        //       it.removeNotification()
+        //   }
+        Log.d("Notifi","onRestart")
+    }
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onDestroy() {
         super.onDestroy()
-        //radioService?.showNotification(R.drawable.ic_pause_24)
-
+        MainActivity.radioService?.let {
+            it.showNotification(R.drawable.ic_pause_24)
+        }
         Log.d("RadioService", "Avtivity Destruida")
     }
     private inner class EmisoraItemClickListener: StationsAdapter.StationsAdapterListener {

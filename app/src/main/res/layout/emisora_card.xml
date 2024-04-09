@@ -13,6 +13,7 @@
     android:foreground="?android:attr/selectableItemBackground"
     card_view:cardCornerRadius="5dp"
     card_view:cardElevation="5dp"
+    android:contentDescription="Abrir emisora"
     card_view:cardUseCompatPadding="true">
 
     <LinearLayout

@@ -198,7 +198,7 @@ class RadioService : Service() {
         }
     }
 
-    private fun removeNotification() {
+     fun removeNotification() {
         // stopSelf()
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

@@ -20,6 +20,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:padding="3dp"
+            android:contentDescription="Deslize hacia abajo"
             android:scrollbars="vertical"/>
 
     </androidx.appcompat.widget.LinearLayoutCompat>
@@ -108,13 +109,13 @@
                 android:text="RadioCubana"
                 android:textAlignment="center"
                 android:textColor="@color/white"
-                android:textSize="20dp"
+                android:textSize="20sp"
                 android:textStyle="italic" />
 
             <com.google.android.material.floatingactionbutton.FloatingActionButton
                 android:id="@+id/btnPlay"
-                android:layout_width="35dp"
-                android:layout_height="35dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_centerVertical="true"
                 android:layout_marginLeft="10dp"
                 android:layout_toRightOf="@+id/title"
@@ -125,31 +126,33 @@
 
             <com.google.android.material.floatingactionbutton.FloatingActionButton
                 android:id="@+id/btnStop"
-                android:layout_width="35dp"
-                android:layout_height="35dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_centerVertical="true"
                 android:layout_marginLeft="10dp"
                 android:layout_toRightOf="@+id/btnPlay"
                 android:clickable="true"
+                android:contentDescription="Detener"
                 android:src="@drawable/ic_stop_24"
                 app:backgroundTint="@color/colorPrimary"
                 app:fabCustomSize="35dp" />
 
             <ImageView
                 android:id="@+id/idFavoriteWhite"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
                 android:layout_centerVertical="true"
                 android:layout_marginLeft="10dp"
                 android:clickable="true"
+
                 android:tooltipText="Agregar a Favoritos"
                 android:src="@drawable/ic_favorite_border_24"
                 android:layout_toRightOf="@+id/btnStop"/>
 
             <ImageView
                 android:id="@+id/idFavoriteRed"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
                 android:layout_centerVertical="true"
                 android:layout_marginLeft="10dp"
                 android:clickable="true"

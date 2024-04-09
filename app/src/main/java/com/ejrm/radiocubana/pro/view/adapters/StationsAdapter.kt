@@ -32,7 +32,7 @@ class StationsAdapter(private val onClickListener: StationsAdapter.StationsAdapt
         notifyDataSetChanged()
     }
 
-    override fun getItemCount(): Int = stationsList?.size!!
+    override fun getItemCount(): Int = stationsList?.size ?: 0
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val emisoraCardBinding = EmisoraCardBinding.bind(view)
