@@ -102,9 +102,9 @@ class MainActivity : AppCompatActivity() {
         if (isServiceRunning(RadioService::class.java)) radioService!!.stopRadio()
         iniRecyclerView()
         initViewModel()
-      //  initLoadAds()
-       // initListeners()
-      //  initAds()
+        initLoadAds()
+        initListeners()
+        initAds()
         binding.btnPlay.setOnClickListener(View.OnClickListener {
             if (radioService!!.isPlaying()) {
                 radioService!!.controlPlay()
@@ -193,8 +193,6 @@ class MainActivity : AppCompatActivity() {
     private fun initListeners() {
         interstitial?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
-                val intent = Intent(baseContext, FavoriteActivity::class.java)
-                startActivity(intent)
             }
 
             override fun onAdFailedToShowFullScreenContent(p0: AdError) {
@@ -365,10 +363,8 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.favoriteList -> {
-                initAds()
-                initListeners()
-
-
+                val intent = Intent(baseContext, FavoriteActivity::class.java)
+                startActivity(intent)
             }
 
             R.id.info -> {
@@ -452,41 +448,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        Toast.makeText(this, "onStart", Toast.LENGTH_SHORT).show()
-    }
+
 
     override fun onResume() {
         super.onResume()
-        Toast.makeText(this@MainActivity, "onResume", Toast.LENGTH_SHORT).show()
         registerReceiver(estadoRed, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
     }
 
-    override fun onPause() {
-        Toast.makeText(this, "onPause", Toast.LENGTH_SHORT).show()
-        super.onPause()
-    }
     override fun onStop() {
-        Toast.makeText(this, "onStop", Toast.LENGTH_SHORT).show()
         super.onStop()
-       // Toast.makeText(this@MainActivity, "onStop", Toast.LENGTH_SHORT).show()
-
-        //   radioService?.let {
-    //        it.showNotification(R.drawable.ic_pause_24)
-     //   }
+         radioService?.let {
+            it.showNotification(R.drawable.ic_pause_24)
+        }
         Log.d("Notifi","onStop")
     }
 
-    override fun onRestart() {
-        super.onRestart()
-        Toast.makeText(this@MainActivity, "onRestart", Toast.LENGTH_SHORT).show()
-
-        //   radioService?.let {
-     //       it.removeNotification()
-     //   }
-        Log.d("Notifi","onRestart")
-    }
 
     private val estadoRed = object : BroadcastReceiver() {
         override fun onReceive(p0: Context?, p1: Intent?) {
@@ -495,7 +471,7 @@ class MainActivity : AppCompatActivity() {
             if (checkForInternet(baseContext)) {
                 GlobalScope.launch(Dispatchers.Main) {
                     var response =
-                        withContext(Dispatchers.IO) { dataConexion("https://icecast.teveo.cu/b3jbfThq") }
+                        withContext(Dispatchers.IO) { dataConexion("https://www.google.com") }
                     if (!response) {
                         Snackbar.make(
                             binding.root,
@@ -541,7 +517,6 @@ class MainActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onDestroy() {
         super.onDestroy()
-        Toast.makeText(this, "onDestroy", Toast.LENGTH_SHORT).show()
         radioService?.let {
             it.showNotification(R.drawable.ic_pause_24)
         }

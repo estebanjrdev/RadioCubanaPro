@@ -23,34 +23,10 @@ class FavoriteViewModel @Inject constructor( private val stationsRepository: Sta
         return liveDataList
     }
 
-    @JvmName("getLiveDataStation1")
-    fun getLiveDataStation(): MutableLiveData<Boolean> {
-        return liveDataStation
-    }
-
     fun stationsFavorite(){
         viewModelScope.launch {
             val stations = stationsRepository.getFavoriteStationsFromDatabase()
             liveDataList.postValue(stations)
-        }
-    }
-
-    fun addFavorite(stationsModel: StationsModel){
-        viewModelScope.launch {
-            stationsRepository.insertFavoriteStations(stationsModel)
-        }
-    }
-
-    fun deleteFavorite(stationsModel: StationsModel){
-        viewModelScope.launch {
-            stationsRepository.deleteFavoriteStations(stationsModel)
-        }
-    }
-
-    fun checkStation(stationsModel: StationsModel){
-        viewModelScope.launch {
-            val stations = stationsRepository.checkIfExistStation(stationsModel)
-            liveDataStation.postValue(stations)
         }
     }
 }

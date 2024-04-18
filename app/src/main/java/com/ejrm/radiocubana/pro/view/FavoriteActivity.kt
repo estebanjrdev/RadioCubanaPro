@@ -238,8 +238,6 @@ class FavoriteActivity : AppCompatActivity() {
         return false
     }
 
-
-
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             android.R.id.home ->{
@@ -250,13 +248,7 @@ class FavoriteActivity : AppCompatActivity() {
         return super.onOptionsItemSelected(item)
     }
 
-    fun openLink(uri: Uri){
-        val intent = Intent(Intent.ACTION_VIEW,uri)
-        startActivity(intent)
-    }
-
     fun checkForInternet(context: Context): Boolean {
-
         val connectivityManager =
             context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -274,11 +266,6 @@ class FavoriteActivity : AppCompatActivity() {
             @Suppress("DEPRECATION")
             return networkInfo.isConnected
         }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        Toast.makeText(this, "onStart", Toast.LENGTH_SHORT).show()
     }
 
     override fun onResume() {
@@ -299,7 +286,7 @@ class FavoriteActivity : AppCompatActivity() {
             if (checkForInternet(baseContext)) {
                 GlobalScope.launch(Dispatchers.Main) {
                     var response =
-                        withContext(Dispatchers.IO) { dataConexion("https://icecast.teveo.cu/b3jbfThq") }
+                        withContext(Dispatchers.IO) { dataConexion("https://www.google.com") }
                     if (!response) {
                         Snackbar.make(
                             binding.root,
@@ -341,17 +328,7 @@ class FavoriteActivity : AppCompatActivity() {
             radioService = null
         }
     }
-
-
-
-
-    override fun onPause() {
-        super.onPause()
-        iniRecyclerView()
-        initViewModel()
-    }
     override fun onStop() {
-        Toast.makeText(this, "onStop", Toast.LENGTH_SHORT).show()
         super.onStop()
         // Toast.makeText(this@MainActivity, "onStop", Toast.LENGTH_SHORT).show()
 
@@ -361,15 +338,6 @@ class FavoriteActivity : AppCompatActivity() {
         Log.d("Notifi","onStop")
     }
 
-    override fun onRestart() {
-        super.onRestart()
-        Toast.makeText(this, "onRestart", Toast.LENGTH_SHORT).show()
-
-        //   radioService?.let {
-        //       it.removeNotification()
-        //   }
-        Log.d("Notifi","onRestart")
-    }
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onDestroy() {
         super.onDestroy()
