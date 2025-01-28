@@ -1,43 +1,40 @@
 package com.ejrm.radiocubana.pro.view
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.app.ProgressDialog
-import android.content.*
+import android.content.BroadcastReceiver
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.content.pm.ActivityInfo
-import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
-import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.widget.SearchView
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import androidx.core.view.isVisible
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.ejrm.radiocubana.pro.BuildConfig
 import com.ejrm.radiocubana.pro.R
 import com.ejrm.radiocubana.pro.data.model.StationsModel
-import com.ejrm.radiocubana.pro.data.model.StationsProvider
 import com.ejrm.radiocubana.pro.databinding.ActivityMainBinding
 import com.ejrm.radiocubana.pro.databinding.ContactoBinding
 import com.ejrm.radiocubana.pro.services.RadioService
@@ -55,10 +52,13 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -104,7 +104,7 @@ class MainActivity : AppCompatActivity() {
         initViewModel()
         initLoadAds()
         initListeners()
-        initAds()
+        //initAds()
         binding.btnPlay.setOnClickListener(View.OnClickListener {
             if (radioService!!.isPlaying()) {
                 radioService!!.controlPlay()
@@ -289,13 +289,17 @@ class MainActivity : AppCompatActivity() {
     suspend fun getResponseCode(url: String): Int {
         delay(1500)
         val httpConnection: HttpURLConnection =
-            URL(url)
-                .openConnection() as HttpURLConnection
+            withContext(Dispatchers.IO) {
+                URL(url)
+                    .openConnection()
+            } as HttpURLConnection
         if (checkForInternet(this)) {
             try {
                 httpConnection.setRequestProperty("User-Agent", "Android")
                 httpConnection.connectTimeout = 8000
-                httpConnection.connect()
+                withContext(Dispatchers.IO) {
+                    httpConnection.connect()
+                }
             } catch (e: Exception) {
                 println(e.toString())
                 return 404
@@ -308,13 +312,17 @@ class MainActivity : AppCompatActivity() {
     suspend fun dataConexion(url: String): Boolean {
         delay(1500)
         val httpConnection: HttpURLConnection =
-            URL(url)
-                .openConnection() as HttpURLConnection
+            withContext(Dispatchers.IO) {
+                URL(url)
+                    .openConnection()
+            } as HttpURLConnection
         if (checkForInternet(this)) {
             try {
                 httpConnection.setRequestProperty("User-Agent", "Android")
                 httpConnection.connectTimeout = 1500
-                httpConnection.connect()
+                withContext(Dispatchers.IO) {
+                    httpConnection.connect()
+                }
                 return httpConnection.responseCode == 200
             } catch (e: Exception) {
                 println(e.toString())
@@ -455,13 +463,13 @@ class MainActivity : AppCompatActivity() {
         registerReceiver(estadoRed, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
     }
 
-    override fun onStop() {
+   /* override fun onStop() {
         super.onStop()
          radioService?.let {
             it.showNotification(R.drawable.ic_pause_24)
         }
         Log.d("Notifi","onStop")
-    }
+    }*/
 
 
     private val estadoRed = object : BroadcastReceiver() {
