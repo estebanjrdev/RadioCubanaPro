@@ -13,3 +13,26 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Archivos de firma - NUNCA COMMITEAR
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Archivos de configuración sensibles
+google-services.json
+firebase-crashlytics.properties
+
+# APKs y AABs generados
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Archivos de ProGuard mapping (útiles para Crashlytics pero grandes)
+# Descomenta si quieres versionar los mappings
+# app/build/outputs/mapping/
+
+# Logs
+*.log

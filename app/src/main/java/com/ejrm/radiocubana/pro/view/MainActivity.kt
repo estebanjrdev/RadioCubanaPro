@@ -2,6 +2,7 @@ package com.ejrm.radiocubana.pro.view
 
 import android.Manifest
 import android.app.ActivityManager
+import com.ejrm.radiocubana.pro.BuildConfig
 import android.app.ProgressDialog
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -46,8 +47,11 @@ import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.OnUserEarnedRewardListener
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.google.android.gms.ads.rewarded.RewardedAd
+import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
@@ -72,7 +76,14 @@ class MainActivity : AppCompatActivity() {
     private var lastBackPressedTime: Long = 0
     private lateinit var viewModel: MainViewModel
     private lateinit var adapter: StationsAdapter
+    
+    // Control de anuncios intersticiales
     private var interstitial: InterstitialAd? = null
+    
+    // Anuncios recompensados
+    private var rewardedAd: RewardedAd? = null
+    private var tiempoSinAnunciosHasta: Long = 0
+    
     private val appPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             if (!result.all { it.value }) {
@@ -87,7 +98,21 @@ class MainActivity : AppCompatActivity() {
         requestedOrientation = (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true);
+        
+        // Configurar Firebase solo si está habilitado (solo en prod)
+        if (BuildConfig.ENABLE_CRASHLYTICS) {
+            try {
+                FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true)
+                Log.d("MainActivity", "Firebase Crashlytics habilitado")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error al inicializar Crashlytics: ${e.message}")
+            }
+        }
+        
+        // Log del entorno actual
+        Log.d("MainActivity", "Iniciando en modo: ${BuildConfig.ENVIRONMENT}")
+        Log.d("MainActivity", "Anuncios habilitados: ${BuildConfig.SHOW_ADS}")
+        Log.d("MainActivity", "Crashlytics habilitado: ${BuildConfig.ENABLE_CRASHLYTICS}")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 
             val NOTIFICATION_PERMISSION = arrayOf(
@@ -97,14 +122,21 @@ class MainActivity : AppCompatActivity() {
 
         }
 
-        checkForUpdates()
+        // Verificar actualizaciones solo si Firebase está disponible
+        if (BuildConfig.ENABLE_CRASHLYTICS) {
+            checkForUpdates()
+        }
+        
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
         if (isServiceRunning(RadioService::class.java)) radioService!!.stopRadio()
         iniRecyclerView()
         initViewModel()
-        initLoadAds()
+        
+        // Precargar anuncios al iniciar la app
+        precargarAnuncioIntersticial()
+        precargarAnuncioRecompensado()
+        
         initListeners()
-        //initAds()
         binding.btnPlay.setOnClickListener(View.OnClickListener {
             if (radioService!!.isPlaying()) {
                 radioService!!.controlPlay()
@@ -162,17 +194,21 @@ class MainActivity : AppCompatActivity() {
 
 
     fun checkForUpdates() {
-        val remoteConfig = FirebaseRemoteConfig.getInstance()
-        val currentVersion = packageManager.getPackageInfo(packageName, 0).versionCode
+        try {
+            val remoteConfig = FirebaseRemoteConfig.getInstance()
+            val currentVersion = packageManager.getPackageInfo(packageName, 0).versionCode
 
-        remoteConfig.fetchAndActivate().addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                val latestAppVersion = remoteConfig.getLong("latest_app_version")
+            remoteConfig.fetchAndActivate().addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val latestAppVersion = remoteConfig.getLong("latest_app_version")
 
-                if (latestAppVersion > currentVersion) {
-                    showUpdateDialog()
+                    if (latestAppVersion > currentVersion) {
+                        showUpdateDialog()
+                    }
                 }
             }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error al verificar actualizaciones: ${e.message}")
         }
     }
 
@@ -191,59 +227,233 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initListeners() {
+        // Los listeners se configuran en cada función de precarga
+    }
+
+    /**
+     * Precarga un anuncio intersticial sin mostrarlo
+     * Se ejecuta al iniciar la app y después de mostrar cada anuncio
+     */
+    private fun precargarAnuncioIntersticial() {
+        // No cargar anuncios en modo debug si está deshabilitado
+        if (!BuildConfig.SHOW_ADS) {
+            Log.d("Anuncios", "Anuncios deshabilitados en ${BuildConfig.ENVIRONMENT}")
+            return
+        }
+        
+        if (interstitial == null) {
+            val adRequest = AdRequest.Builder().build()
+            val adUnitId = getString(R.string.interstitial_ad_unit_id)
+            
+            InterstitialAd.load(
+                this,
+                adUnitId,
+                adRequest,
+                object : InterstitialAdLoadCallback() {
+                    override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                        interstitial = interstitialAd
+                        configurarCallbacksIntersticial()
+                        Log.d("Anuncios", "Anuncio intersticial precargado [${BuildConfig.ENVIRONMENT}]")
+                    }
+
+                    override fun onAdFailedToLoad(error: LoadAdError) {
+                        interstitial = null
+                        Log.d("Anuncios", "Error al cargar intersticial: ${error.message}")
+                    }
+                })
+        }
+    }
+
+    /**
+     * Configura los callbacks del anuncio intersticial
+     */
+    private fun configurarCallbacksIntersticial() {
         interstitial?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
+                interstitial = null
+                precargarAnuncioIntersticial() // Precargar el siguiente
+                Log.d("Anuncios", "Anuncio intersticial cerrado")
             }
 
-            override fun onAdFailedToShowFullScreenContent(p0: AdError) {
+            override fun onAdFailedToShowFullScreenContent(error: AdError) {
+                interstitial = null
+                precargarAnuncioIntersticial() // Intentar precargar otro
+                Log.d("Anuncios", "Error al mostrar intersticial: ${error.message}")
             }
 
             override fun onAdShowedFullScreenContent() {
                 interstitial = null
+                Log.d("Anuncios", "Anuncio intersticial mostrado")
             }
         }
     }
 
-    private fun initAds() {
-        val adRequest = AdRequest.Builder().build()
-        InterstitialAd.load(
-            this,
-            "ca-app-pub-3706009063515657/3663170922",
-            adRequest,
-            object : InterstitialAdLoadCallback() {
-                override fun onAdLoaded(interstitialAd: InterstitialAd) {
-                    interstitial = interstitialAd
-                    interstitial?.show(this@MainActivity)
-                }
+    /**
+     * Precarga un anuncio recompensado sin mostrarlo
+     */
+    private fun precargarAnuncioRecompensado() {
+        // No cargar anuncios en modo debug si está deshabilitado
+        if (!BuildConfig.SHOW_ADS) {
+            Log.d("Anuncios", "Anuncios recompensados deshabilitados en ${BuildConfig.ENVIRONMENT}")
+            return
+        }
+        
+        if (rewardedAd == null) {
+            val adRequest = AdRequest.Builder().build()
+            val adUnitId = getString(R.string.rewarded_ad_unit_id)
+            
+            RewardedAd.load(
+                this,
+                adUnitId,
+                adRequest,
+                object : RewardedAdLoadCallback() {
+                    override fun onAdLoaded(ad: RewardedAd) {
+                        rewardedAd = ad
+                        configurarCallbacksRecompensado()
+                        Log.d("Anuncios", "Anuncio recompensado precargado [${BuildConfig.ENVIRONMENT}]")
+                    }
 
-                override fun onAdFailedToLoad(p0: LoadAdError) {
-                    interstitial = null
-                }
-            })
+                    override fun onAdFailedToLoad(error: LoadAdError) {
+                        rewardedAd = null
+                        Log.d("Anuncios", "Error al cargar recompensado: ${error.message}")
+                    }
+                })
+        }
     }
 
-    private fun initLoadAds() {
-        val adRequest = AdRequest.Builder().build()
-        binding.banner.loadAd(adRequest)
-
-        binding.banner.adListener = object : AdListener() {
-            override fun onAdLoaded() {
+    /**
+     * Configura los callbacks del anuncio recompensado
+     */
+    private fun configurarCallbacksRecompensado() {
+        rewardedAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
+            override fun onAdDismissedFullScreenContent() {
+                rewardedAd = null
+                precargarAnuncioRecompensado()
+                Log.d("Anuncios", "Anuncio recompensado cerrado")
             }
 
-            override fun onAdFailedToLoad(adError: LoadAdError) {
+            override fun onAdFailedToShowFullScreenContent(error: AdError) {
+                rewardedAd = null
+                precargarAnuncioRecompensado()
+                Log.d("Anuncios", "Error al mostrar recompensado: ${error.message}")
             }
 
-            override fun onAdOpened() {
+            override fun onAdShowedFullScreenContent() {
+                rewardedAd = null
+                Log.d("Anuncios", "Anuncio recompensado mostrado")
             }
+        }
+    }
 
-            override fun onAdClicked() {
-            }
+    /**
+     * Determina si debe mostrarse un anuncio intersticial
+     * Solo verifica si hay período sin anuncios activo
+     */
+    private fun deberiasMostrarAnuncio(): Boolean {
+        val tiempoActual = System.currentTimeMillis()
+        
+        // Verificar si está en período sin anuncios (recompensa activa)
+        if (tiempoActual < tiempoSinAnunciosHasta) {
+            val tiempoRestante = (tiempoSinAnunciosHasta - tiempoActual) / 1000 / 60
+            Log.d("Anuncios", "Período sin anuncios activo. Quedan $tiempoRestante minutos")
+            return false
+        }
+        
+        return true
+    }
 
-            fun onAdLeftApplication() {
-            }
+    /**
+     * Verifica si hay reproducción activa
+     * Retorna false si el servicio no está disponible o no inicializado
+     */
+    private fun hayReproduccionActiva(): Boolean {
+        return try {
+            radioService?.isPlaying() == true
+        } catch (e: Exception) {
+            Log.e("Anuncios", "Error al verificar reproducción: ${e.message}")
+            false
+        }
+    }
 
-            override fun onAdClosed() {
+    /**
+     * Muestra un anuncio intersticial si cumple las condiciones
+     */
+    private fun mostrarAnuncioSiCorresponde() {
+        // NUNCA interrumpir reproducción activa
+        if (hayReproduccionActiva()) {
+            Log.d("Anuncios", "No mostrar: reproducción activa")
+            return
+        }
+        
+        // Verificar si debe mostrar el anuncio
+        if (!deberiasMostrarAnuncio()) {
+            Log.d("Anuncios", "Período sin anuncios activo")
+            return
+        }
+        
+        // Mostrar anuncio si está disponible
+        if (interstitial != null) {
+            interstitial?.show(this@MainActivity)
+            Log.d("Anuncios", "Mostrando anuncio intersticial")
+        } else {
+            Log.d("Anuncios", "No hay anuncio precargado disponible")
+            precargarAnuncioIntersticial() // Intentar precargar para la próxima vez
+        }
+    }
+
+    /**
+     * Muestra un anuncio recompensado para obtener tiempo sin anuncios
+     */
+    private fun mostrarAnuncioRecompensado() {
+        if (rewardedAd != null) {
+            rewardedAd?.show(this, OnUserEarnedRewardListener { reward ->
+                // Usuario gana 30 minutos sin anuncios
+                tiempoSinAnunciosHasta = System.currentTimeMillis() + (30 * 60 * 1000)
+                val mensaje = "¡Disfruta 30 minutos sin anuncios!"
+                Toast.makeText(this, mensaje, Toast.LENGTH_LONG).show()
+                Log.d("Anuncios", "Recompensa otorgada: 30 min sin anuncios")
+            })
+        } else {
+            Toast.makeText(this, "Anuncio no disponible, intenta más tarde", Toast.LENGTH_SHORT).show()
+            precargarAnuncioRecompensado() // Intentar precargar
+        }
+    }
+
+    /**
+     * Muestra un diálogo explicando el anuncio recompensado
+     */
+    private fun mostrarDialogoAnuncioRecompensado() {
+        val tiempoActual = System.currentTimeMillis()
+        
+        // Verificar si ya tiene tiempo sin anuncios activo
+        if (tiempoActual < tiempoSinAnunciosHasta) {
+            val minutosRestantes = (tiempoSinAnunciosHasta - tiempoActual) / 1000 / 60
+            val alertDialog = AlertDialog.Builder(this)
+            alertDialog.setTitle("Sin Anuncios Activo")
+            alertDialog.setIcon(R.mipmap.ic_launcher_round)
+            alertDialog.setMessage("Ya tienes $minutosRestantes minutos restantes sin anuncios.\n\n¿Deseas ver otro anuncio para extender el tiempo?")
+            alertDialog.setPositiveButton("Ver Anuncio") { _, _ ->
+                mostrarAnuncioRecompensado()
             }
+            alertDialog.setNegativeButton("Cancelar") { dialog, _ ->
+                dialog.dismiss()
+            }
+            alertDialog.show()
+        } else {
+            val alertDialog = AlertDialog.Builder(this)
+            alertDialog.setTitle("Escucha sin Anuncios")
+            alertDialog.setIcon(R.mipmap.ic_launcher_round)
+            alertDialog.setMessage(
+                "Ve un anuncio corto y disfruta de 30 minutos escuchando tus emisoras favoritas sin interrupciones.\n\n" +
+                "Durante este tiempo no se mostrarán anuncios mientras cambias de emisora."
+            )
+            alertDialog.setPositiveButton("Ver Anuncio") { _, _ ->
+                mostrarAnuncioRecompensado()
+            }
+            alertDialog.setNegativeButton("Cancelar") { dialog, _ ->
+                dialog.dismiss()
+            }
+            alertDialog.show()
         }
     }
 
@@ -262,14 +472,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun startService(stations: StationsModel) {
-        initAds()
+        // Mostrar anuncio cada vez que inicia una emisora (si no está en período sin anuncios)
+        mostrarAnuncioSiCorresponde()
+        
         val intent = Intent(this, RadioService::class.java)
         bindService(intent, myConnection, Context.BIND_AUTO_CREATE)
-        // Intent(this, RadioService::class.java).also {
         intent.putExtra("URL", stations.link)
         intent.putExtra("NAME", stations.name)
         intent.putExtra("IMAGE", stations.imagen)
         startService(intent)
+        
         val viewModel: MainViewModel = ViewModelProvider(this).get(MainViewModel::class.java)
         viewModel.getLiveDataStation().observe(this, Observer {
             if (it) {
@@ -430,6 +642,11 @@ class MainActivity : AppCompatActivity() {
             R.id.valoracion -> {
                 PlayStoreRatingHelper.openPlayStoreForRating(this)
             }
+            
+            R.id.sin_anuncios -> {
+                mostrarDialogoAnuncioRecompensado()
+            }
+            
             R.id.politica -> {
                 openLink(Uri.parse("https://www.app-privacy-policy.com/live.php?token=fUsNDhObFBDnkj2oAGyPoCvnmP8KqnCl"))
             }

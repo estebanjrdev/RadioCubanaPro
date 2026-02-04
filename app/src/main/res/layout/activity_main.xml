@@ -5,7 +5,6 @@
     android:id="@+id/idConstrain"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    xmlns:ads="http://schemas.android.com/apk/res-auto"
     tools:context=".view.MainActivity">
 
     <androidx.appcompat.widget.LinearLayoutCompat
@@ -15,12 +14,6 @@
         android:orientation="vertical"
         android:visibility="gone"
         tools:ignore="MissingConstraints">
-        <com.google.android.gms.ads.AdView
-            android:id="@+id/banner"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            ads:adSize="BANNER"
-            ads:adUnitId="ca-app-pub-3706009063515657/8597354282"/>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recycler"

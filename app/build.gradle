@@ -5,44 +5,134 @@ plugins {
     id 'dagger.hilt.android.plugin'
     id 'com.google.gms.google-services'
     id 'com.google.firebase.crashlytics'
-
 }
 
 android {
-    compileSdkVersion 34
-    buildToolsVersion '34.0.0'
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.ejrm.radiocubana.pro"
-        minSdkVersion 23
-        targetSdkVersion 34
-        versionCode 6
-        versionName "1.3.0"
+        minSdk 26
+        targetSdk 35
+        versionCode 8
+        versionName "1.6.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildTypes {
+    // Configuración de firma para release
+    signingConfigs {
         release {
+            storeFile file("/Users/estebanjrdev/AndroidStudioProjects/KeyStore/key_ejrm.jks")
+            storePassword "Jesus97*"
+            keyAlias "ejrm"
+            keyPassword "Jesus97*"
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+            debuggable true
+            minifyEnabled false
+            shrinkResources false
+            
+            // Nombre de app para debug
+            resValue "string", "app_name", "Radio Cubana (Debug)"
+            
+            // Control de features para debug
+            buildConfigField "boolean", "SHOW_ADS", "false"
+            buildConfigField "boolean", "ENABLE_CRASHLYTICS", "false"
+            buildConfigField "boolean", "ENABLE_ANALYTICS", "false"
+        }
+        
+        release {
+            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-        debug {
-
+            
+            // Nombre de app para release
+            resValue "string", "app_name", "Radio Cubana"
+            
+            // Control de features para release
+            buildConfigField "boolean", "SHOW_ADS", "true"
+            buildConfigField "boolean", "ENABLE_CRASHLYTICS", "true"
+            buildConfigField "boolean", "ENABLE_ANALYTICS", "true"
         }
     }
+    
+    // Configuración de flavors (entornos)
+    flavorDimensions "version"
+    productFlavors {
+        // Entorno de desarrollo
+        dev {
+            dimension "version"
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
+            
+            // Nombre específico para desarrollo
+            resValue "string", "app_name", "Radio Cubana (Dev)"
+            
+            // IDs de anuncios de PRUEBA de Google
+            resValue "string", "interstitial_ad_unit_id", "ca-app-pub-3940256099942544/1033173712"
+            resValue "string", "rewarded_ad_unit_id", "ca-app-pub-3940256099942544/5224354917"
+            
+            // Configuración para desarrollo
+            buildConfigField "boolean", "USE_TEST_ADS", "true"
+            buildConfigField "String", "ENVIRONMENT", '"DEV"'
+        }
+        
+        // Entorno de producción
+        prod {
+            dimension "version"
+            
+            // Nombre para producción (usa el definido en buildType)
+            // resValue "string", "app_name", "Radio Cubana" // Ya definido en buildType
+            
+            // IDs de anuncios REALES de tu cuenta AdMob
+            resValue "string", "interstitial_ad_unit_id", "ca-app-pub-3706009063515657/3663170922"
+            resValue "string", "rewarded_ad_unit_id", "ca-app-pub-3706009063515657/7802407624"
+            
+            // Configuración para producción
+            buildConfigField "boolean", "USE_TEST_ADS", "false"
+            buildConfigField "String", "ENVIRONMENT", '"PROD"'
+        }
+    }
+    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    
     kotlinOptions {
         jvmTarget = '17'
     }
+    
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
+    
     namespace 'com.ejrm.radiocubana.pro'
+}
+
+// Deshabilitar Google Services y Crashlytics para el flavor dev (no está registrado en Firebase)
+afterEvaluate {
+    // Deshabilitar tareas de Google Services para dev
+    tasks.matching { task ->
+        (task.name.contains("Dev") && task.name.contains("GoogleServices"))
+    }.configureEach {
+        enabled = false
+    }
+    
+    // Deshabilitar tareas de Crashlytics para dev
+    tasks.matching { task ->
+        (task.name.contains("Dev") && (task.name.contains("Crashlytics") || task.name.contains("crashlytics")))
+    }.configureEach {
+        enabled = false
+    }
 }
 
 dependencies {

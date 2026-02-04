@@ -32,7 +32,7 @@ class RadioService : Service() {
     private lateinit var mediaSession: MediaSessionCompat
     var mediaPlayer: MediaPlayerSingleton? = null
 
-    fun isPlaying() = mediaPlayer!!.isPlaying
+    fun isPlaying() = mediaPlayer?.isPlaying ?: false
 
     fun controlPlayNotifi() {
         mediaPlayer?.let {
