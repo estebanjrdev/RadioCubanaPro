@@ -5,6 +5,37 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.6.0] - 2026-01-26
+
+### CRÍTICO - Corrección de Política AdMob
+
+### Corregido
+- **Bug crítico de política**: Violación de "Site Behavior: Navigation" de AdMob
+  - Eliminados anuncios intersticiales durante navegación del usuario
+  - Los anuncios ya NO se muestran al cambiar de emisora
+  - Ahora solo se muestran en pausas naturales (al volver a la app)
+
+### Añadido
+- Intervalo mínimo de 3 minutos entre anuncios intersticiales
+- Sistema de conteo de sesiones para frecuencia controlada
+- Validación para no mostrar anuncios en primera apertura
+- Logging mejorado para verificar cumplimiento de políticas
+- Función `intentarMostrarAnuncioEnPausaNatural()` que respeta políticas de AdMob
+
+### Cambiado
+- Sistema de anuncios intersticiales completamente rediseñado:
+  - ❌ ANTES: Anuncio cada vez que cambiaba de emisora (violaba política)
+  - ✅ AHORA: Anuncios solo en onResume, cada 2 sesiones, mínimo 3 min entre anuncios
+- Anuncios ahora cumplen 100% con Políticas de AdMob
+- Mejor experiencia de usuario con interrupciones mínimas
+- Version code: 7 → 8
+- Version name: 1.5.0 → 1.6.0
+
+### Documentación
+- Añadido documento completo de corrección de políticas (`ADMOB_POLICY_FIX.md`)
+- Instrucciones detalladas para solicitar revisión en AdMob
+- Comparación antes/después de la implementación
+
 ## [1.5.0] - 2026-01-26
 
 ### Añadido

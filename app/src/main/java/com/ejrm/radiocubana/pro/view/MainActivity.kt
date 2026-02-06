@@ -79,6 +79,14 @@ class MainActivity : AppCompatActivity() {
     
     // Control de anuncios intersticiales
     private var interstitial: InterstitialAd? = null
+    private var ultimoAnuncioTimestamp: Long = 0
+    private val INTERVALO_MINIMO_ANUNCIOS_MS = 120000L // 2 minutos entre anuncios (política AdMob cumplida)
+    private var contadorSesiones = 0
+    
+    // Contador de cambios de emisora
+    private var contadorCambiosEmisora = 0
+    private val CAMBIOS_PARA_ANUNCIO = 3 // Mostrar anuncio cada 3 cambios de emisora
+    private var anuncioPendiente = false
     
     // Anuncios recompensados
     private var rewardedAd: RewardedAd? = null
@@ -347,15 +355,29 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Determina si debe mostrarse un anuncio intersticial
-     * Solo verifica si hay período sin anuncios activo
+     * ESTRATEGIA: Mostrar cada 3 cambios de emisora + intervalo mínimo
      */
     private fun deberiasMostrarAnuncio(): Boolean {
         val tiempoActual = System.currentTimeMillis()
         
-        // Verificar si está en período sin anuncios (recompensa activa)
+        // 1. Verificar si está en período sin anuncios (recompensa activa)
         if (tiempoActual < tiempoSinAnunciosHasta) {
             val tiempoRestante = (tiempoSinAnunciosHasta - tiempoActual) / 1000 / 60
             Log.d("Anuncios", "Período sin anuncios activo. Quedan $tiempoRestante minutos")
+            return false
+        }
+        
+        // 2. Verificar si hay un anuncio pendiente (3 cambios completados)
+        if (!anuncioPendiente) {
+            Log.d("Anuncios", "No hay anuncio pendiente. Cambios: $contadorCambiosEmisora/$CAMBIOS_PARA_ANUNCIO")
+            return false
+        }
+        
+        // 3. POLÍTICA ADMOB: Intervalo mínimo de 2 minutos entre anuncios
+        val tiempoDesdeUltimoAnuncio = tiempoActual - ultimoAnuncioTimestamp
+        if (tiempoDesdeUltimoAnuncio < INTERVALO_MINIMO_ANUNCIOS_MS) {
+            val segundosRestantes = (INTERVALO_MINIMO_ANUNCIOS_MS - tiempoDesdeUltimoAnuncio) / 1000
+            Log.d("Anuncios", "Intervalo mínimo no cumplido. Faltan $segundosRestantes segundos")
             return false
         }
         
@@ -377,6 +399,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Muestra un anuncio intersticial si cumple las condiciones
+     * POLÍTICA ADMOB: Solo en pausas naturales, no durante navegación
      */
     private fun mostrarAnuncioSiCorresponde() {
         // NUNCA interrumpir reproducción activa
@@ -385,22 +408,45 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        // Verificar si debe mostrar el anuncio
+        // Verificar si debe mostrar el anuncio (respeta intervalos y políticas)
         if (!deberiasMostrarAnuncio()) {
-            Log.d("Anuncios", "Período sin anuncios activo")
             return
         }
         
         // Mostrar anuncio si está disponible
         if (interstitial != null) {
             interstitial?.show(this@MainActivity)
-            Log.d("Anuncios", "Mostrando anuncio intersticial")
+            // IMPORTANTE: Resetear contadores después de mostrar
+            ultimoAnuncioTimestamp = System.currentTimeMillis()
+            contadorCambiosEmisora = 0
+            anuncioPendiente = false
+            Log.d("Anuncios", "Anuncio mostrado. Contador reseteado. [Cada 3 cambios de emisora]")
         } else {
             Log.d("Anuncios", "No hay anuncio precargado disponible")
             precargarAnuncioIntersticial() // Intentar precargar para la próxima vez
         }
     }
 
+    /**
+     * Intenta mostrar anuncio en pausa natural (inicio de app, vuelta de otra activity)
+     * POLÍTICA ADMOB: Solo mostrar después de pausas naturales, no en interacciones
+     * 
+     * ESTRATEGIA: Cada 3 cambios de emisora
+     * - Si hay anuncio pendiente (3 cambios), intentar mostrarlo al volver
+     * - Respeta intervalo mínimo de 2 minutos
+     */
+    private fun intentarMostrarAnuncioEnPausaNatural() {
+        // Incrementar contador de sesiones
+        contadorSesiones++
+        
+        // Si hay anuncio pendiente (usuario hizo 3 cambios), intentar mostrarlo
+        if (anuncioPendiente) {
+            binding.root.postDelayed({
+                mostrarAnuncioSiCorresponde()
+            }, 1000) // 1 segundo después de volver a la app
+        }
+    }
+    
     /**
      * Muestra un anuncio recompensado para obtener tiempo sin anuncios
      */
@@ -472,8 +518,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun startService(stations: StationsModel) {
-        // Mostrar anuncio cada vez que inicia una emisora (si no está en período sin anuncios)
-        mostrarAnuncioSiCorresponde()
+        // Incrementar contador de cambios de emisora
+        contadorCambiosEmisora++
+        Log.d("Anuncios", "Cambio de emisora detectado. Contador: $contadorCambiosEmisora/$CAMBIOS_PARA_ANUNCIO")
+        
+        // Al llegar a 3 cambios, marcar que hay anuncio pendiente
+        if (contadorCambiosEmisora >= CAMBIOS_PARA_ANUNCIO) {
+            anuncioPendiente = true
+            Log.d("Anuncios", "3 cambios completados. Anuncio pendiente para próxima pausa natural")
+            
+            // Intentar mostrar el anuncio después de un delay (pausa micro-natural)
+            // Esto permite que el usuario vea que la emisora cambió correctamente
+            binding.root.postDelayed({
+                mostrarAnuncioSiCorresponde()
+            }, 2000) // 2 segundos después del 3er cambio
+        }
         
         val intent = Intent(this, RadioService::class.java)
         bindService(intent, myConnection, Context.BIND_AUTO_CREATE)
@@ -678,6 +737,10 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         registerReceiver(estadoRed, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+        
+        // POLÍTICA ADMOB: Mostrar anuncios solo en pausas naturales (al volver a la app)
+        // NO en cada interacción del usuario
+        intentarMostrarAnuncioEnPausaNatural()
     }
 
    /* override fun onStop() {
