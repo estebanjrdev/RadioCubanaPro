@@ -7,6 +7,13 @@ plugins {
     id 'com.google.firebase.crashlytics'
 }
 
+// Cargar configuración del keystore desde archivo externo (no versionado)
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     compileSdk 35
 
@@ -20,13 +27,22 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // Configuración de firma para release
+    // Configuración de firma para release (usando variables de entorno)
     signingConfigs {
         release {
-            storeFile file("/Users/estebanjrdev/AndroidStudioProjects/KeyStore/key_ejrm.jks")
-            storePassword "Jesus97*"
-            keyAlias "ejrm"
-            keyPassword "Jesus97*"
+            if (keystorePropertiesFile.exists()) {
+                // Leer desde keystore.properties (no versionado)
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            } else {
+                // Fallback: Variables de entorno (para CI/CD)
+                storeFile file(System.getenv("KEYSTORE_FILE") ?: "")
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+            }
         }
     }
 

@@ -19,10 +19,19 @@ local.properties
 *.keystore
 keystore.properties
 signing.properties
+key_*.jks
+/keystore.properties
 
-# Archivos de configuración sensibles
+# Build.gradle con credenciales (si usas uno separado)
+# NOTA: Tu build.gradle principal tiene credenciales hardcodeadas
+# Considera moverlas a un archivo keystore.properties
+
+# Archivos de configuración sensibles - NUNCA COMMITEAR
 google-services.json
+app/google-services.json
 firebase-crashlytics.properties
+crashlytics-build.properties
+firebase-debug.log
 
 # APKs y AABs generados
 *.apk
