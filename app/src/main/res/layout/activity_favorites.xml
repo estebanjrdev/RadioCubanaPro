@@ -25,6 +25,46 @@
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
+    <!-- Estado vacío: visible cuando no hay favoritos -->
+    <LinearLayout
+        android:id="@+id/layoutEmptyState"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="48dp"
+        android:visibility="gone"
+        tools:ignore="MissingConstraints">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@drawable/ic_favorite_border_24"
+            android:alpha="0.4"
+            android:tint="@color/colorPrimary"
+            android:contentDescription="Sin favoritos" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Aún no tienes emisoras favoritas"
+            android:textSize="16sp"
+            android:textColor="@color/colorPrimaryDark"
+            android:textStyle="bold"
+            android:textAlignment="center" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Toca el ♡ en cualquier emisora para agregarla aquí"
+            android:textSize="13sp"
+            android:textColor="@color/colorPrimary"
+            android:textAlignment="center" />
+
+    </LinearLayout>
+
     <com.facebook.shimmer.ShimmerFrameLayout
         android:id="@+id/shimmerFrameLayout"
         android:layout_width="match_parent"
@@ -86,81 +126,90 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
+            <!-- Logo de la emisora: anclado a la izquierda -->
             <ImageView
                 android:id="@+id/imagelogo"
                 android:layout_width="60dp"
                 android:layout_height="60dp"
-                android:layout_alignParentLeft="true"
+                android:layout_alignParentStart="true"
                 android:layout_centerVertical="true"
                 android:layout_margin="10dp"
                 android:src="@drawable/ic_launcher_background" />
 
+            <!-- Botones: siempre anclados a la derecha sin importar el tamaño de pantalla -->
+            <LinearLayout
+                android:id="@+id/buttonsContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingEnd="8dp">
+
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/btnPlay"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:clickable="true"
+                    app:backgroundTint="@color/colorPrimary"
+                    app:fabCustomSize="40dp"
+                    app:maxImageSize="22dp"
+                    app:srcCompat="@drawable/ic_play_24" />
+
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/btnStop"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:clickable="true"
+                    android:src="@drawable/ic_stop_24"
+                    app:backgroundTint="@color/colorPrimary"
+                    app:fabCustomSize="40dp"
+                    app:maxImageSize="22dp" />
+
+                <ImageView
+                    android:id="@+id/idFavoriteWhite"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="4dp"
+                    android:clickable="true"
+                    android:src="@drawable/ic_favorite_border_24"
+                    android:tooltipText="Agregar a Favoritos" />
+
+                <ImageView
+                    android:id="@+id/idFavoriteRed"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="4dp"
+                    android:clickable="true"
+                    android:src="@drawable/ic_favorite_24"
+                    android:tooltipText="Quitar de Favoritos"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <!-- Título: ocupa el espacio entre el logo y los botones -->
             <TextView
                 android:id="@+id/title"
-                android:layout_width="70dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_centerVertical="true"
-                android:layout_marginLeft="5dp"
-                android:layout_toRightOf="@+id/imagelogo"
+                android:layout_toEndOf="@+id/imagelogo"
+                android:layout_toStartOf="@+id/buttonsContainer"
                 android:ellipsize="marquee"
                 android:fadingEdge="horizontal"
                 android:marqueeRepeatLimit="marquee_forever"
+                android:paddingStart="5dp"
+                android:paddingEnd="8dp"
                 android:scrollHorizontally="true"
                 android:singleLine="true"
                 android:text="RadioCubana"
-                android:textAlignment="center"
+                android:textAlignment="viewStart"
                 android:textColor="@color/white"
-                android:textSize="20sp"
+                android:textSize="18sp"
                 android:textStyle="italic" />
-
-
-            <com.google.android.material.floatingactionbutton.FloatingActionButton
-                android:id="@+id/btnPlay"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_centerVertical="true"
-                android:layout_marginLeft="10dp"
-                android:layout_toRightOf="@+id/title"
-                android:clickable="true"
-                app:backgroundTint="@color/colorPrimary"
-                app:fabCustomSize="35dp"
-                app:srcCompat="@drawable/ic_play_24" />
-
-            <com.google.android.material.floatingactionbutton.FloatingActionButton
-                android:id="@+id/btnStop"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_centerVertical="true"
-                android:layout_marginLeft="10dp"
-                android:layout_toRightOf="@+id/btnPlay"
-                android:clickable="true"
-                android:src="@drawable/ic_stop_24"
-                app:backgroundTint="@color/colorPrimary"
-                app:fabCustomSize="35dp" />
-
-            <ImageView
-                android:id="@+id/idFavoriteWhite"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:layout_centerVertical="true"
-                android:layout_marginLeft="10dp"
-                android:layout_toRightOf="@+id/btnStop"
-                android:clickable="true"
-                android:src="@drawable/ic_favorite_border_24"
-                android:tooltipText="Agregar a Favoritos" />
-
-            <ImageView
-                android:id="@+id/idFavoriteRed"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:layout_centerVertical="true"
-                android:layout_marginLeft="10dp"
-                android:layout_toRightOf="@+id/btnStop"
-                android:clickable="true"
-                android:src="@drawable/ic_favorite_24"
-                android:tooltipText="Quitar de Favoritos"
-                android:visibility="gone" />
-
 
         </RelativeLayout>
 

@@ -70,6 +70,10 @@ class RadioService : Service() {
             it.stop()
             it.reset()
             mediaPlayer = null
+            isPreparing = false
+            url = null      // Limpiar estado para que no restaure UI incorrectamente
+            name = null
+            imagen = null
             updatePlaybackState(PlaybackStateCompat.STATE_STOPPED)
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             // Notificar a la Activity para que oculte la barra de reproducción
@@ -79,11 +83,14 @@ class RadioService : Service() {
         }
     }
 
+    var isPreparing = false
+
     fun initReproduction(url: String, context: Context) {
         // Detener reproducción anterior si existe
         mediaPlayer?.stop()
         mediaPlayer?.reset()
         mediaPlayer = null
+        isPreparing = true
 
         mediaPlayer = MediaPlayerSingleton
         mediaPlayer?.initMediaPlayerSingleton(context)
@@ -97,6 +104,7 @@ class RadioService : Service() {
         mediaPlayer?.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK)
         mediaPlayer?.prepareAsync()
         mediaPlayer?.setOnPreparedListener {
+            isPreparing = false
             mediaPlayer?.start()
             // Actualizar metadatos y estado para el panel Multimedia de Samsung
             updateMediaSessionMetadata()

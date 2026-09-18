@@ -1,9 +1,7 @@
 package com.ejrm.radiocubana.pro.view
 
 import android.Manifest
-import android.app.ActivityManager
 import com.ejrm.radiocubana.pro.BuildConfig
-import android.app.ProgressDialog
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -12,7 +10,9 @@ import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.ActivityInfo
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -25,7 +25,6 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -33,17 +32,18 @@ import androidx.appcompat.widget.SearchView
 import androidx.core.view.isVisible
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.ejrm.radiocubana.pro.R
 import com.ejrm.radiocubana.pro.data.model.StationsModel
 import com.ejrm.radiocubana.pro.databinding.ActivityMainBinding
 import com.ejrm.radiocubana.pro.databinding.ContactoBinding
 import com.ejrm.radiocubana.pro.services.RadioService
+import com.ejrm.radiocubana.pro.util.Constants
 import com.ejrm.radiocubana.pro.util.PlayStoreRatingHelper
 import com.ejrm.radiocubana.pro.view.adapters.StationsAdapter
 import com.ejrm.radiocubana.pro.viewmodel.MainViewModel
 import com.google.android.gms.ads.AdError
-import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
@@ -57,7 +57,6 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,31 +66,32 @@ import java.net.URL
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
-    lateinit var station: StationsModel
+    // ── Binding como instancia privada (antes en companion object → memory leak) ──
+    private lateinit var binding: ActivityMainBinding
 
-    companion object {
-        lateinit var binding: ActivityMainBinding
-        var radioService: RadioService? = null
-    }
+    // ── radioService como instancia privada (ya no depende NotificationReceiver de él) ──
+    private var radioService: RadioService? = null
+
+    lateinit var station: StationsModel
     private var lastBackPressedTime: Long = 0
     private lateinit var viewModel: MainViewModel
     private lateinit var adapter: StationsAdapter
-    
+
     // Control de anuncios intersticiales
     private var interstitial: InterstitialAd? = null
     private var ultimoAnuncioTimestamp: Long = 0
-    private val INTERVALO_MINIMO_ANUNCIOS_MS = 120000L // 2 minutos entre anuncios (política AdMob cumplida)
+    private val INTERVALO_MINIMO_ANUNCIOS_MS = 120000L
     private var contadorSesiones = 0
-    
+
     // Contador de cambios de emisora
     private var contadorCambiosEmisora = 0
-    private val CAMBIOS_PARA_ANUNCIO = 3 // Mostrar anuncio cada 3 cambios de emisora
+    private val CAMBIOS_PARA_ANUNCIO = 3
     private var anuncioPendiente = false
-    
+
     // Anuncios recompensados
     private var rewardedAd: RewardedAd? = null
     private var tiempoSinAnunciosHasta: Long = 0
-    
+
     private val appPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             if (!result.all { it.value }) {
@@ -99,14 +99,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        requestedOrientation = (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        
+
         // Configurar Firebase solo si está habilitado (solo en prod)
         if (BuildConfig.ENABLE_CRASHLYTICS) {
             try {
@@ -116,40 +115,45 @@ class MainActivity : AppCompatActivity() {
                 Log.e("MainActivity", "Error al inicializar Crashlytics: ${e.message}")
             }
         }
-        
-        // Log del entorno actual
+
         Log.d("MainActivity", "Iniciando en modo: ${BuildConfig.ENVIRONMENT}")
         Log.d("MainActivity", "Anuncios habilitados: ${BuildConfig.SHOW_ADS}")
         Log.d("MainActivity", "Crashlytics habilitado: ${BuildConfig.ENABLE_CRASHLYTICS}")
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-
-            val NOTIFICATION_PERMISSION = arrayOf(
-                Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.POST_NOTIFICATIONS
+            appPermissionLauncher.launch(
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS)
             )
-            appPermissionLauncher.launch(NOTIFICATION_PERMISSION)
-
         }
 
-        // Verificar actualizaciones solo si Firebase está disponible
         if (BuildConfig.ENABLE_CRASHLYTICS) {
             checkForUpdates()
         }
-        
+
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
-        if (isServiceRunning(RadioService::class.java)) radioService!!.stopRadio()
+
+        // Reconectar al servicio si ya estaba corriendo (usuario volvió a abrir la app)
+        // Flag 0 = solo bind si el servicio ya existe, no lo crea
+        bindService(Intent(this, RadioService::class.java), myConnection, 0)
+
         iniRecyclerView()
         initViewModel()
-        
-        // Precargar anuncios al iniciar la app
+
+        // Observer centralizado para el estado de favorito de la emisora actual.
+        // Se registra UNA sola vez aquí para evitar observers duplicados.
+        viewModel.getLiveDataStation().observe(this, Observer { isFavorite ->
+            binding.idFavoriteRed.isVisible = isFavorite == true
+            binding.idFavoriteWhite.isVisible = isFavorite != true
+        })
+
         precargarAnuncioIntersticial()
         precargarAnuncioRecompensado()
-        
+
         initListeners()
+
         binding.btnPlay.setOnClickListener {
             radioService?.let { service ->
-                // controlPlayNotifi actualiza tanto la reproducción como la notificación
                 service.controlPlayNotifi()
-                // Actualizar icono del botón según nuevo estado
                 if (service.isPlaying()) {
                     binding.btnPlay.setImageResource(R.drawable.ic_pause_24)
                     binding.btnPlay.contentDescription = "Detener"
@@ -160,62 +164,54 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnStop.setOnClickListener(View.OnClickListener {
-            radioService!!.stopRadio()
+        binding.btnStop.setOnClickListener {
+            radioService?.stopRadio()
             binding.layoutReproduction.visibility = LinearLayout.INVISIBLE
             if (binding.idFavoriteRed.isVisible) {
                 binding.idFavoriteRed.isVisible = false
                 binding.idFavoriteWhite.isVisible = true
             }
-        })
-        binding.idFavoriteWhite.setOnClickListener(View.OnClickListener {
+        }
+
+        binding.idFavoriteWhite.setOnClickListener {
             if (binding.idFavoriteWhite.isVisible) {
                 viewModel.addFavorite(station)
                 binding.idFavoriteWhite.isVisible = false
                 binding.idFavoriteRed.isVisible = true
                 binding.idFavoriteRed.contentDescription = "Eliminar de Favoritos"
             }
-        })
-        binding.idFavoriteRed.setOnClickListener(View.OnClickListener {
+        }
+
+        binding.idFavoriteRed.setOnClickListener {
             if (binding.idFavoriteRed.isVisible) {
                 viewModel.deleteFavorite(station)
                 binding.idFavoriteRed.isVisible = false
                 binding.idFavoriteWhite.isVisible = true
                 binding.idFavoriteWhite.contentDescription = "Agregar a Favoritos"
-                //binding.idFavoriteWhite.startAnimation(anim)
             }
-        })
+        }
 
-        val onBackPressedCallback = object : OnBackPressedCallback(true) {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val currentTime = System.currentTimeMillis()
-                val elapsedTime = currentTime - lastBackPressedTime
-
-                if (elapsedTime < 2000) {
-                    finish() // Cierra la actividad actual
+                if (currentTime - lastBackPressedTime < 2000) {
+                    finish()
                 } else {
                     Toast.makeText(this@MainActivity, "Presione nuevamente para salir", Toast.LENGTH_SHORT).show()
                     lastBackPressedTime = currentTime
                 }
             }
-        }
-
-        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+        })
     }
-
 
     fun checkForUpdates() {
         try {
             val remoteConfig = FirebaseRemoteConfig.getInstance()
             val currentVersion = packageManager.getPackageInfo(packageName, 0).versionCode
-
             remoteConfig.fetchAndActivate().addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val latestAppVersion = remoteConfig.getLong("latest_app_version")
-
-                    if (latestAppVersion > currentVersion) {
-                        showUpdateDialog()
-                    }
+                    if (latestAppVersion > currentVersion) showUpdateDialog()
                 }
             }
         } catch (e: Exception) {
@@ -224,49 +220,38 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showUpdateDialog() {
-        val alertdialog = AlertDialog.Builder(this)
-        alertdialog.setTitle("Nueva versión")
-        alertdialog.setIcon(R.mipmap.ic_launcher_round)
-        alertdialog.setMessage("Por favor, actualice la aplicación.")
-        alertdialog.setCancelable(false)
-        alertdialog.setPositiveButton("Actualizar") { _, _ ->
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")))
-        }
-        val alert = alertdialog.create()
-        alert.setCanceledOnTouchOutside(false)
-        alert.show()
+        AlertDialog.Builder(this)
+            .setTitle("Nueva versión")
+            .setIcon(R.mipmap.ic_launcher_round)
+            .setMessage("Por favor, actualice la aplicación.")
+            .setCancelable(false)
+            .setPositiveButton("Actualizar") { _, _ ->
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")))
+            }
+            .create().also {
+                it.setCanceledOnTouchOutside(false)
+                it.show()
+            }
     }
 
     private fun initListeners() {
         // Los listeners se configuran en cada función de precarga
     }
 
-    /**
-     * Precarga un anuncio intersticial sin mostrarlo
-     * Se ejecuta al iniciar la app y después de mostrar cada anuncio
-     */
     private fun precargarAnuncioIntersticial() {
-        // No cargar anuncios en modo debug si está deshabilitado
         if (!BuildConfig.SHOW_ADS) {
             Log.d("Anuncios", "Anuncios deshabilitados en ${BuildConfig.ENVIRONMENT}")
             return
         }
-        
         if (interstitial == null) {
-            val adRequest = AdRequest.Builder().build()
-            val adUnitId = getString(R.string.interstitial_ad_unit_id)
-            
-            InterstitialAd.load(
-                this,
-                adUnitId,
-                adRequest,
+            InterstitialAd.load(this, getString(R.string.interstitial_ad_unit_id),
+                AdRequest.Builder().build(),
                 object : InterstitialAdLoadCallback() {
-                    override fun onAdLoaded(interstitialAd: InterstitialAd) {
-                        interstitial = interstitialAd
+                    override fun onAdLoaded(ad: InterstitialAd) {
+                        interstitial = ad
                         configurarCallbacksIntersticial()
-                        Log.d("Anuncios", "Anuncio intersticial precargado [${BuildConfig.ENVIRONMENT}]")
+                        Log.d("Anuncios", "Intersticial precargado [${BuildConfig.ENVIRONMENT}]")
                     }
-
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         interstitial = null
                         Log.d("Anuncios", "Error al cargar intersticial: ${error.message}")
@@ -275,23 +260,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Configura los callbacks del anuncio intersticial
-     */
     private fun configurarCallbacksIntersticial() {
         interstitial?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
                 interstitial = null
-                precargarAnuncioIntersticial() // Precargar el siguiente
+                precargarAnuncioIntersticial()
                 Log.d("Anuncios", "Anuncio intersticial cerrado")
             }
-
             override fun onAdFailedToShowFullScreenContent(error: AdError) {
                 interstitial = null
-                precargarAnuncioIntersticial() // Intentar precargar otro
+                precargarAnuncioIntersticial()
                 Log.d("Anuncios", "Error al mostrar intersticial: ${error.message}")
             }
-
             override fun onAdShowedFullScreenContent() {
                 interstitial = null
                 Log.d("Anuncios", "Anuncio intersticial mostrado")
@@ -299,31 +279,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Precarga un anuncio recompensado sin mostrarlo
-     */
     private fun precargarAnuncioRecompensado() {
-        // No cargar anuncios en modo debug si está deshabilitado
         if (!BuildConfig.SHOW_ADS) {
             Log.d("Anuncios", "Anuncios recompensados deshabilitados en ${BuildConfig.ENVIRONMENT}")
             return
         }
-        
         if (rewardedAd == null) {
-            val adRequest = AdRequest.Builder().build()
-            val adUnitId = getString(R.string.rewarded_ad_unit_id)
-            
-            RewardedAd.load(
-                this,
-                adUnitId,
-                adRequest,
+            RewardedAd.load(this, getString(R.string.rewarded_ad_unit_id),
+                AdRequest.Builder().build(),
                 object : RewardedAdLoadCallback() {
                     override fun onAdLoaded(ad: RewardedAd) {
                         rewardedAd = ad
                         configurarCallbacksRecompensado()
-                        Log.d("Anuncios", "Anuncio recompensado precargado [${BuildConfig.ENVIRONMENT}]")
+                        Log.d("Anuncios", "Recompensado precargado [${BuildConfig.ENVIRONMENT}]")
                     }
-
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         rewardedAd = null
                         Log.d("Anuncios", "Error al cargar recompensado: ${error.message}")
@@ -332,9 +301,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Configura los callbacks del anuncio recompensado
-     */
     private fun configurarCallbacksRecompensado() {
         rewardedAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
@@ -342,13 +308,11 @@ class MainActivity : AppCompatActivity() {
                 precargarAnuncioRecompensado()
                 Log.d("Anuncios", "Anuncio recompensado cerrado")
             }
-
             override fun onAdFailedToShowFullScreenContent(error: AdError) {
                 rewardedAd = null
                 precargarAnuncioRecompensado()
                 Log.d("Anuncios", "Error al mostrar recompensado: ${error.message}")
             }
-
             override fun onAdShowedFullScreenContent() {
                 rewardedAd = null
                 Log.d("Anuncios", "Anuncio recompensado mostrado")
@@ -356,41 +320,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Determina si debe mostrarse un anuncio intersticial
-     * ESTRATEGIA: Mostrar cada 3 cambios de emisora + intervalo mínimo
-     */
     private fun deberiasMostrarAnuncio(): Boolean {
         val tiempoActual = System.currentTimeMillis()
-        
-        // 1. Verificar si está en período sin anuncios (recompensa activa)
         if (tiempoActual < tiempoSinAnunciosHasta) {
-            val tiempoRestante = (tiempoSinAnunciosHasta - tiempoActual) / 1000 / 60
-            Log.d("Anuncios", "Período sin anuncios activo. Quedan $tiempoRestante minutos")
+            Log.d("Anuncios", "Período sin anuncios activo. Quedan ${(tiempoSinAnunciosHasta - tiempoActual) / 60000} minutos")
             return false
         }
-        
-        // 2. Verificar si hay un anuncio pendiente (3 cambios completados)
         if (!anuncioPendiente) {
             Log.d("Anuncios", "No hay anuncio pendiente. Cambios: $contadorCambiosEmisora/$CAMBIOS_PARA_ANUNCIO")
             return false
         }
-        
-        // 3. POLÍTICA ADMOB: Intervalo mínimo de 2 minutos entre anuncios
         val tiempoDesdeUltimoAnuncio = tiempoActual - ultimoAnuncioTimestamp
         if (tiempoDesdeUltimoAnuncio < INTERVALO_MINIMO_ANUNCIOS_MS) {
-            val segundosRestantes = (INTERVALO_MINIMO_ANUNCIOS_MS - tiempoDesdeUltimoAnuncio) / 1000
-            Log.d("Anuncios", "Intervalo mínimo no cumplido. Faltan $segundosRestantes segundos")
+            Log.d("Anuncios", "Intervalo mínimo no cumplido. Faltan ${(INTERVALO_MINIMO_ANUNCIOS_MS - tiempoDesdeUltimoAnuncio) / 1000} segundos")
             return false
         }
-        
         return true
     }
 
-    /**
-     * Verifica si hay reproducción activa
-     * Retorna false si el servicio no está disponible o no inicializado
-     */
     private fun hayReproduccionActiva(): Boolean {
         return try {
             radioService?.isPlaying() == true
@@ -400,109 +347,63 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Muestra un anuncio intersticial si cumple las condiciones
-     * POLÍTICA ADMOB: Solo en pausas naturales, no durante navegación
-     */
     private fun mostrarAnuncioSiCorresponde() {
-        // NUNCA interrumpir reproducción activa
         if (hayReproduccionActiva()) {
             Log.d("Anuncios", "No mostrar: reproducción activa")
             return
         }
-        
-        // Verificar si debe mostrar el anuncio (respeta intervalos y políticas)
-        if (!deberiasMostrarAnuncio()) {
-            return
-        }
-        
-        // Mostrar anuncio si está disponible
+        if (!deberiasMostrarAnuncio()) return
         if (interstitial != null) {
             interstitial?.show(this@MainActivity)
-            // IMPORTANTE: Resetear contadores después de mostrar
             ultimoAnuncioTimestamp = System.currentTimeMillis()
             contadorCambiosEmisora = 0
             anuncioPendiente = false
-            Log.d("Anuncios", "Anuncio mostrado. Contador reseteado. [Cada 3 cambios de emisora]")
+            Log.d("Anuncios", "Anuncio mostrado. Contador reseteado.")
         } else {
             Log.d("Anuncios", "No hay anuncio precargado disponible")
-            precargarAnuncioIntersticial() // Intentar precargar para la próxima vez
+            precargarAnuncioIntersticial()
         }
     }
 
-    /**
-     * Intenta mostrar anuncio en pausa natural (inicio de app, vuelta de otra activity)
-     * POLÍTICA ADMOB: Solo mostrar después de pausas naturales, no en interacciones
-     * 
-     * ESTRATEGIA: Cada 3 cambios de emisora
-     * - Si hay anuncio pendiente (3 cambios), intentar mostrarlo al volver
-     * - Respeta intervalo mínimo de 2 minutos
-     */
     private fun intentarMostrarAnuncioEnPausaNatural() {
-        // Incrementar contador de sesiones
         contadorSesiones++
-        
-        // Si hay anuncio pendiente (usuario hizo 3 cambios), intentar mostrarlo
         if (anuncioPendiente) {
-            binding.root.postDelayed({
-                mostrarAnuncioSiCorresponde()
-            }, 1000) // 1 segundo después de volver a la app
+            binding.root.postDelayed({ mostrarAnuncioSiCorresponde() }, 1000)
         }
     }
-    
-    /**
-     * Muestra un anuncio recompensado para obtener tiempo sin anuncios
-     */
+
     private fun mostrarAnuncioRecompensado() {
         if (rewardedAd != null) {
-            rewardedAd?.show(this, OnUserEarnedRewardListener { reward ->
-                // Usuario gana 30 minutos sin anuncios
+            rewardedAd?.show(this, OnUserEarnedRewardListener {
                 tiempoSinAnunciosHasta = System.currentTimeMillis() + (30 * 60 * 1000)
-                val mensaje = "¡Disfruta 30 minutos sin anuncios!"
-                Toast.makeText(this, mensaje, Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "¡Disfruta 30 minutos sin anuncios!", Toast.LENGTH_LONG).show()
                 Log.d("Anuncios", "Recompensa otorgada: 30 min sin anuncios")
             })
         } else {
             Toast.makeText(this, "Anuncio no disponible, intenta más tarde", Toast.LENGTH_SHORT).show()
-            precargarAnuncioRecompensado() // Intentar precargar
+            precargarAnuncioRecompensado()
         }
     }
 
-    /**
-     * Muestra un diálogo explicando el anuncio recompensado
-     */
     private fun mostrarDialogoAnuncioRecompensado() {
         val tiempoActual = System.currentTimeMillis()
-        
-        // Verificar si ya tiene tiempo sin anuncios activo
         if (tiempoActual < tiempoSinAnunciosHasta) {
-            val minutosRestantes = (tiempoSinAnunciosHasta - tiempoActual) / 1000 / 60
-            val alertDialog = AlertDialog.Builder(this)
-            alertDialog.setTitle("Sin Anuncios Activo")
-            alertDialog.setIcon(R.mipmap.ic_launcher_round)
-            alertDialog.setMessage("Ya tienes $minutosRestantes minutos restantes sin anuncios.\n\n¿Deseas ver otro anuncio para extender el tiempo?")
-            alertDialog.setPositiveButton("Ver Anuncio") { _, _ ->
-                mostrarAnuncioRecompensado()
-            }
-            alertDialog.setNegativeButton("Cancelar") { dialog, _ ->
-                dialog.dismiss()
-            }
-            alertDialog.show()
+            val minutosRestantes = (tiempoSinAnunciosHasta - tiempoActual) / 60000
+            AlertDialog.Builder(this)
+                .setTitle("Sin Anuncios Activo")
+                .setIcon(R.mipmap.ic_launcher_round)
+                .setMessage("Ya tienes $minutosRestantes minutos restantes sin anuncios.\n\n¿Deseas ver otro anuncio para extender el tiempo?")
+                .setPositiveButton("Ver Anuncio") { _, _ -> mostrarAnuncioRecompensado() }
+                .setNegativeButton("Cancelar") { dialog, _ -> dialog.dismiss() }
+                .show()
         } else {
-            val alertDialog = AlertDialog.Builder(this)
-            alertDialog.setTitle("Escucha sin Anuncios")
-            alertDialog.setIcon(R.mipmap.ic_launcher_round)
-            alertDialog.setMessage(
-                "Ve un anuncio corto y disfruta de 30 minutos escuchando tus emisoras favoritas sin interrupciones.\n\n" +
-                "Durante este tiempo no se mostrarán anuncios mientras cambias de emisora."
-            )
-            alertDialog.setPositiveButton("Ver Anuncio") { _, _ ->
-                mostrarAnuncioRecompensado()
-            }
-            alertDialog.setNegativeButton("Cancelar") { dialog, _ ->
-                dialog.dismiss()
-            }
-            alertDialog.show()
+            AlertDialog.Builder(this)
+                .setTitle("Escucha sin Anuncios")
+                .setIcon(R.mipmap.ic_launcher_round)
+                .setMessage("Ve un anuncio corto y disfruta de 30 minutos escuchando tus emisoras favoritas sin interrupciones.\n\nDurante este tiempo no se mostrarán anuncios mientras cambias de emisora.")
+                .setPositiveButton("Ver Anuncio") { _, _ -> mostrarAnuncioRecompensado() }
+                .setNegativeButton("Cancelar") { dialog, _ -> dialog.dismiss() }
+                .show()
         }
     }
 
@@ -516,46 +417,35 @@ class MainActivity : AppCompatActivity() {
         viewModel.getLiveDataObserver().observe(this, Observer {
             adapter.setStationsList(it)
             adapter.notifyDataSetChanged()
+            // Ocultar shimmer y mostrar lista cuando los datos estén listos
+            binding.viewLoading.isVisible = false
+            binding.view.isVisible = true
         })
         viewModel.stationsProviders()
     }
 
     fun startService(stations: StationsModel) {
-        // Incrementar contador de cambios de emisora
         contadorCambiosEmisora++
         Log.d("Anuncios", "Cambio de emisora detectado. Contador: $contadorCambiosEmisora/$CAMBIOS_PARA_ANUNCIO")
-        
-        // Al llegar a 3 cambios, marcar que hay anuncio pendiente
+
         if (contadorCambiosEmisora >= CAMBIOS_PARA_ANUNCIO) {
             anuncioPendiente = true
             Log.d("Anuncios", "3 cambios completados. Anuncio pendiente para próxima pausa natural")
-            
-            // Intentar mostrar el anuncio después de un delay (pausa micro-natural)
-            binding.root.postDelayed({
-                mostrarAnuncioSiCorresponde()
-            }, 2000)
+            binding.root.postDelayed({ mostrarAnuncioSiCorresponde() }, 2000)
         }
-        
+
         val intent = Intent(this, RadioService::class.java).apply {
             putExtra("URL", stations.link)
             putExtra("NAME", stations.name)
             putExtra("IMAGE", stations.imagen)
         }
-        // Usar startForegroundService en Android 8+ para que el servicio sobreviva en segundo plano
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
             startService(intent)
         }
         bindService(Intent(this, RadioService::class.java), myConnection, Context.BIND_AUTO_CREATE)
-        
-        val viewModel: MainViewModel = ViewModelProvider(this).get(MainViewModel::class.java)
-        viewModel.getLiveDataStation().observe(this, Observer {
-            if (it) {
-                binding.idFavoriteRed.isVisible = true
-                binding.idFavoriteWhite.isVisible = false
-            }
-        })
+
         viewModel.checkStation(stations)
         binding.layoutReproduction.visibility = LinearLayout.VISIBLE
         binding.imagelogo.setImageResource(stations.imagen)
@@ -567,56 +457,47 @@ class MainActivity : AppCompatActivity() {
     @RequiresPermission(anyOf = [Manifest.permission.ACCESS_NETWORK_STATE, Manifest.permission.INTERNET])
     suspend fun getResponseCode(url: String): Int {
         delay(1500)
-        val httpConnection: HttpURLConnection =
-            withContext(Dispatchers.IO) {
-                URL(url)
-                    .openConnection()
-            } as HttpURLConnection
-        if (checkForInternet(this)) {
+        if (!checkForInternet(this)) return 404
+        return withContext(Dispatchers.IO) {
+            var httpConnection: HttpURLConnection? = null
             try {
+                httpConnection = URL(url).openConnection() as HttpURLConnection
                 httpConnection.setRequestProperty("User-Agent", "Android")
                 httpConnection.connectTimeout = 8000
-                withContext(Dispatchers.IO) {
-                    httpConnection.connect()
-                }
+                httpConnection.readTimeout = 8000
+                httpConnection.instanceFollowRedirects = false
+                httpConnection.connect()
+                val code = httpConnection.responseCode
+                code
+            } catch (e: java.io.EOFException) {
+                // Los streams de audio Icecast cierran la conexión antes de dar respuesta HTTP
+                // Si se pudo conectar lo suficiente para recibir esta excepción → está disponible
+                Log.d("MainActivity", "Stream disponible (EOFException esperada): ${e.message}")
+                200
             } catch (e: Exception) {
-                println(e.toString())
-                return 404
+                Log.e("MainActivity", "Error verificando URL: ${e.message}")
+                404
+            } finally {
+                httpConnection?.disconnect()
             }
         }
-        return httpConnection.responseCode
     }
 
     @RequiresPermission(anyOf = [Manifest.permission.ACCESS_NETWORK_STATE, Manifest.permission.INTERNET])
     suspend fun dataConexion(url: String): Boolean {
         delay(1500)
-        val httpConnection: HttpURLConnection =
-            withContext(Dispatchers.IO) {
-                URL(url)
-                    .openConnection()
-            } as HttpURLConnection
+        val httpConnection = withContext(Dispatchers.IO) {
+            URL(url).openConnection()
+        } as HttpURLConnection
         if (checkForInternet(this)) {
             try {
                 httpConnection.setRequestProperty("User-Agent", "Android")
                 httpConnection.connectTimeout = 1500
-                withContext(Dispatchers.IO) {
-                    httpConnection.connect()
-                }
+                withContext(Dispatchers.IO) { httpConnection.connect() }
                 return httpConnection.responseCode == 200
             } catch (e: Exception) {
                 println(e.toString())
                 return false
-            }
-        }
-        return false
-    }
-
-    fun isServiceRunning(mClass: Class<RadioService>): Boolean {
-
-        val manager: ActivityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        for (service: ActivityManager.RunningServiceInfo in manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (mClass.name.equals(service.service.className)) {
-                return true
             }
         }
         return false
@@ -631,10 +512,7 @@ class MainActivity : AppCompatActivity() {
         val search = menu!!.findItem(R.id.search)
         val searchView = search.actionView as SearchView
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                return false
-            }
-
+            override fun onQueryTextSubmit(query: String?) = false
             override fun onQueryTextChange(newText: String?): Boolean {
                 viewModel.getLiveDataObserver().observe(this@MainActivity, Observer {
                     adapter.setStationsList(it)
@@ -649,116 +527,125 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.favoriteList -> {
-                val intent = Intent(baseContext, FavoriteActivity::class.java)
-                startActivity(intent)
-            }
-
+            R.id.favoriteList -> startActivity(Intent(baseContext, FavoriteActivity::class.java))
             R.id.info -> {
-                val alertdialog = AlertDialog.Builder(this)
-                alertdialog.setTitle("Acerca de Radio Cubana")
-                alertdialog.setMessage(
-                    "Esta aplicación nos permite escuchar las principales emisoras nacionales de radio desde el móvil.\n" +
-                            "Requiere estar conectado a internet.\n" +
-                            "Siempre debe recordar que en caso de que habrá alguna emisora y no este disponible es porque hay emisoras que no están al aire las 24 horas del día.\n" +
-                            "Con Radio Cubana podemos estar todo el tiempo informado de las últimas noticias, escuchar música y disfrutar de los partidos de béisbol de la serie nacional etc."
-                )
-                alertdialog.setPositiveButton("Aceptar") { _, _ ->
-
-                }
-                alertdialog.show()
+                AlertDialog.Builder(this)
+                    .setTitle("Acerca de Radio Cubana")
+                    .setMessage("Esta aplicación nos permite escuchar las principales emisoras nacionales de radio desde el móvil.\nRequiere estar conectado a internet.\nSiempre debe recordar que en caso de que habrá alguna emisora y no este disponible es porque hay emisoras que no están al aire las 24 horas del día.\nCon Radio Cubana podemos estar todo el tiempo informado de las últimas noticias, escuchar música y disfrutar de los partidos de béisbol de la serie nacional etc.")
+                    .setPositiveButton("Aceptar") { _, _ -> }
+                    .show()
             }
-
             R.id.contact -> {
                 val bindingcontact = ContactoBinding.inflate(layoutInflater)
-                val alertdialog = AlertDialog.Builder(this)
-                alertdialog.setTitle("Contacto")
-                alertdialog.setView(bindingcontact.root)
-                bindingcontact.layoutemail.setOnClickListener(View.OnClickListener {
-                    val intent = Intent(Intent.ACTION_SEND)
-                    intent.data = Uri.parse("Email")
-                    val array_email = arrayOf("susoluciones.software@gmail.com")
-                    intent.putExtra(Intent.EXTRA_EMAIL, array_email)
-                    intent.putExtra(Intent.EXTRA_SUBJECT, "suSoluciones")
-                    intent.putExtra(Intent.EXTRA_TEXT, "")
-                    intent.type = "message/rfc822"
-                    val a = Intent.createChooser(intent, "Launch Email")
-                    startActivity(a)
-                })
-                bindingcontact.layoutshare.setOnClickListener(View.OnClickListener {
-                    val intent = Intent(Intent.ACTION_SEND)
-                    intent.putExtra(
-                        "android.intent.extra.TEXT", "¡Hola!\n" +
-                                "Te estoy invitando a que uses Radio Cubana, con ella puedes escuchar las emisoras nacionales desde tu telefono\n" +
-                                "\n" +
-                                "Descárgala de: https://play.google.com/store/apps/details?id=com.ejrm.radiocubana.pro"
-                    )
-                    intent.type = "text/plain"
-                    startActivity(intent)
-                })
-                bindingcontact.layouttelegram.setOnClickListener(View.OnClickListener {
-                    openLink(Uri.parse("https://t.me/susoluciones"))
-                })
-
-                alertdialog.setPositiveButton("Aceptar") { _, _ ->
-
+                AlertDialog.Builder(this)
+                    .setTitle("Contacto")
+                    .setView(bindingcontact.root)
+                    .setPositiveButton("Aceptar") { _, _ -> }
+                    .show()
+                bindingcontact.layoutemail.setOnClickListener {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        data = Uri.parse("Email")
+                        putExtra(Intent.EXTRA_EMAIL, arrayOf("susoluciones.software@gmail.com"))
+                        putExtra(Intent.EXTRA_SUBJECT, "suSoluciones")
+                        putExtra(Intent.EXTRA_TEXT, "")
+                        type = "message/rfc822"
+                    }
+                    startActivity(Intent.createChooser(intent, "Launch Email"))
                 }
-                alertdialog.show()
+                bindingcontact.layoutshare.setOnClickListener {
+                    startActivity(Intent(Intent.ACTION_SEND).apply {
+                        putExtra("android.intent.extra.TEXT", "¡Hola!\nTe estoy invitando a que uses Radio Cubana, con ella puedes escuchar las emisoras nacionales desde tu telefono\n\nDescárgala de: https://play.google.com/store/apps/details?id=com.ejrm.radiocubana.pro")
+                        type = "text/plain"
+                    })
+                }
+                bindingcontact.layouttelegram.setOnClickListener {
+                    openLink(Uri.parse("https://t.me/susoluciones"))
+                }
             }
-
-            R.id.valoracion -> {
-                PlayStoreRatingHelper.openPlayStoreForRating(this)
-            }
-            
-            R.id.sin_anuncios -> {
-                mostrarDialogoAnuncioRecompensado()
-            }
-            
-            R.id.politica -> {
-                openLink(Uri.parse("https://www.app-privacy-policy.com/live.php?token=fUsNDhObFBDnkj2oAGyPoCvnmP8KqnCl"))
-            }
+            R.id.valoracion -> PlayStoreRatingHelper.openPlayStoreForRating(this)
+            R.id.sin_anuncios -> mostrarDialogoAnuncioRecompensado()
+            R.id.politica -> openLink(Uri.parse("https://www.app-privacy-policy.com/live.php?token=fUsNDhObFBDnkj2oAGyPoCvnmP8KqnCl"))
         }
         return super.onOptionsItemSelected(item)
     }
 
     fun openLink(uri: Uri) {
-        val intent = Intent(Intent.ACTION_VIEW, uri)
-        startActivity(intent)
+        startActivity(Intent(Intent.ACTION_VIEW, uri))
     }
 
     fun checkForInternet(context: Context): Boolean {
-
-        val connectivityManager =
-            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val activeNetwork = connectivityManager.getNetworkCapabilities(network) ?: return false
-
-        return when {
-            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
-            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
-            else -> false
-        }
+        return activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+               activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
     }
-
-
 
     override fun onResume() {
         super.onResume()
-        registerReceiver(estadoRed, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+        if (radioService == null) {
+            // Intentar reconectar si el servicio está corriendo
+            bindService(Intent(this, RadioService::class.java), myConnection, 0)
+        } else {
+            // Ya tenemos referencia: sincronizar UI con el estado real del servicio
+            // (puede haber cambiado mientras la activity estaba pausada en el back stack)
+            syncUIWithServiceState()
+        }
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        connectivityManager.registerDefaultNetworkCallback(networkCallback)
         intentarMostrarAnuncioEnPausaNatural()
-        // Escuchar cambios de estado del servicio para sincronizar la UI
-        registerReceiver(playbackStateReceiver, IntentFilter().apply {
-            addAction(com.ejrm.radiocubana.pro.util.Constants.ACTION_PLAYBACK_STOPPED)
-            addAction(com.ejrm.radiocubana.pro.util.Constants.ACTION_PLAYBACK_STATE_CHANGED)
-        })
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            playbackStateReceiver,
+            IntentFilter().apply {
+                addAction(Constants.ACTION_PLAYBACK_STOPPED)
+                addAction(Constants.ACTION_PLAYBACK_STATE_CHANGED)
+            },
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    /**
+     * Sincroniza la barra de reproducción con el estado real del RadioService.
+     * Se llama en onResume() para cubrir eventos que ocurrieron mientras la
+     * activity estaba pausada (ej: se detuvo desde FavoriteActivity o la notificación).
+     */
+    private fun syncUIWithServiceState() {
+        val service = radioService
+        if (service != null && (service.isPlaying() || service.isPreparing)) {
+            binding.layoutReproduction.visibility = LinearLayout.VISIBLE
+            service.name?.let { binding.title.text = it }
+            service.imagen?.let { binding.imagelogo.setImageResource(it) }
+            binding.title.isSelected = true
+            binding.btnPlay.setImageResource(
+                if (service.isPlaying() || service.isPreparing) R.drawable.ic_pause_24 else R.drawable.ic_play_24
+            )
+            // Verificar si la emisora actual está en favoritos para mostrar el ícono correcto
+            service.url?.let { url ->
+                viewModel.checkStation(
+                    StationsModel(
+                        link = url,
+                        name = service.name ?: "",
+                        description = "",
+                        imagen = service.imagen ?: R.mipmap.ic_launcher_round
+                    )
+                )
+            }
+        } else {
+            binding.layoutReproduction.visibility = LinearLayout.INVISIBLE
+            // Resetear corazón al estado por defecto al ocultar la barra
+            binding.idFavoriteRed.isVisible = false
+            binding.idFavoriteWhite.isVisible = true
+        }
     }
 
     override fun onPause() {
         super.onPause()
         try {
-            unregisterReceiver(estadoRed)
-        } catch (e: IllegalArgumentException) {
-            Log.w("MainActivity", "Receiver no registrado: ${e.message}")
+            val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            connectivityManager.unregisterNetworkCallback(networkCallback)
+        } catch (e: Exception) {
+            Log.w("MainActivity", "networkCallback no registrado: ${e.message}")
         }
         try {
             unregisterReceiver(playbackStateReceiver)
@@ -767,21 +654,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-   /* override fun onStop() {
-        super.onStop()
-         radioService?.let {
-            it.showNotification(R.drawable.ic_pause_24)
+    /** NetworkCallback reemplaza el BroadcastReceiver CONNECTIVITY_ACTION (deprecado) */
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            runOnUiThread {
+                lifecycleScope.launch(Dispatchers.Main) {
+                    val response = withContext(Dispatchers.IO) { dataConexion("https://www.google.com") }
+                    if (response) {
+                        binding.viewLoading.isVisible = false
+                        binding.view.isVisible = true
+                        Snackbar.make(binding.root, "Conectado!!!", Snackbar.LENGTH_LONG).show()
+                    }
+                }
+            }
         }
-        Log.d("Notifi","onStop")
-    }*/
 
+        override fun onLost(network: Network) {
+            runOnUiThread {
+                Snackbar.make(binding.idConstrain, "Active sus datos móviles o wifi", Snackbar.LENGTH_INDEFINITE).show()
+                binding.viewLoading.isVisible = true
+                binding.view.isVisible = false
+                binding.layoutReproduction.visibility = LinearLayout.INVISIBLE
+            }
+        }
+    }
 
     /** Receiver para sincronizar la UI con los cambios de estado del RadioService */
     private val playbackStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                com.ejrm.radiocubana.pro.util.Constants.ACTION_PLAYBACK_STOPPED -> {
-                    // El servicio se detuvo desde la notificación → ocultar barra de reproducción
+                Constants.ACTION_PLAYBACK_STOPPED -> {
                     binding.layoutReproduction.visibility = LinearLayout.INVISIBLE
                     if (binding.idFavoriteRed.isVisible) {
                         binding.idFavoriteRed.isVisible = false
@@ -789,11 +691,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     Log.d("MainActivity", "UI actualizada: reproducción detenida desde notificación")
                 }
-                com.ejrm.radiocubana.pro.util.Constants.ACTION_PLAYBACK_STATE_CHANGED -> {
-                    // Play/pause desde notificación → actualizar icono del botón en la app
-                    val isPlaying = intent.getBooleanExtra(
-                        com.ejrm.radiocubana.pro.util.Constants.EXTRA_IS_PLAYING, false
-                    )
+                Constants.ACTION_PLAYBACK_STATE_CHANGED -> {
+                    val isPlaying = intent.getBooleanExtra(Constants.EXTRA_IS_PLAYING, false)
                     if (isPlaying) {
                         binding.btnPlay.setImageResource(R.drawable.ic_pause_24)
                         binding.btnPlay.contentDescription = "Detener"
@@ -806,59 +705,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val estadoRed = object : BroadcastReceiver() {
-        override fun onReceive(p0: Context?, p1: Intent?) {
-            iniRecyclerView()
-            initViewModel()
-            if (checkForInternet(baseContext)) {
-                GlobalScope.launch(Dispatchers.Main) {
-                    var response =
-                        withContext(Dispatchers.IO) { dataConexion("https://www.google.com") }
-                    if (!response) {
-                        Snackbar.make(
-                            binding.root,
-                            "No tiene conexión con la red",
-                            Snackbar.LENGTH_INDEFINITE
-                        ).show()
-                        binding.viewLoading.isVisible = true
-                        binding.view.isVisible = false
-                        binding.layoutReproduction.visibility = LinearLayout.INVISIBLE
-                    } else {
-                        binding.viewLoading.isVisible = false
-                        binding.view.isVisible = true
-                        Snackbar.make(binding.root, "Conectado!!!", Snackbar.LENGTH_LONG).show()
-                    }
-                }
-            } else {
-                val snackbar: Snackbar = Snackbar.make(
-                    binding.idConstrain,
-                    "Active sus datos móviles o wifi",
-                    Snackbar.LENGTH_INDEFINITE
-                )
-                snackbar.show()
-                binding.viewLoading.isVisible = true
-                binding.view.isVisible = false
-                binding.layoutReproduction.visibility = LinearLayout.INVISIBLE
-            }
-        }
-
-    }
     private val myConnection = object : ServiceConnection {
         override fun onServiceConnected(p0: ComponentName?, p1: IBinder?) {
-            if (radioService == null) {
-                val binder = p1 as? RadioService.MyBinder
-                radioService = binder?.currentService()
-            }
+            val binder = p1 as? RadioService.MyBinder
+            radioService = binder?.currentService()
+            // Sincronizar UI con el estado real al conectar
+            syncUIWithServiceState()
         }
 
         override fun onServiceDisconnected(p0: ComponentName?) {
             radioService = null
+            binding.layoutReproduction.visibility = LinearLayout.INVISIBLE
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Solo desvinculamos el binding; el servicio sigue corriendo en segundo plano si está reproduciendo
         try {
             unbindService(myConnection)
         } catch (e: IllegalArgumentException) {
@@ -869,16 +731,15 @@ class MainActivity : AppCompatActivity() {
 
     private inner class EmisoraItemClickListener : StationsAdapter.StationsAdapterListener {
         override fun onEmisoraSelected(stations: StationsModel) {
-            val progres = ProgressDialog(this@MainActivity)
-            progres.setMessage("Cargando...")
-            progres.show()
-            GlobalScope.launch(Dispatchers.Main) {
-                var response = withContext(Dispatchers.IO) {
+            // Snackbar de carga — menos intrusivo que un diálogo
+            val loadingSnackbar = Snackbar.make(binding.root, "Verificando emisora...", Snackbar.LENGTH_INDEFINITE)
+            loadingSnackbar.show()
+            lifecycleScope.launch(Dispatchers.Main) {
+                val response = withContext(Dispatchers.IO) {
                     getResponseCode(stations.link)
                 }
-                progres.dismiss()
+                loadingSnackbar.dismiss()
                 if (response != 200) {
-                    println(response)
                     Snackbar.make(binding.root, "Emisora no disponible", 2000).show()
                 } else {
                     station = stations
