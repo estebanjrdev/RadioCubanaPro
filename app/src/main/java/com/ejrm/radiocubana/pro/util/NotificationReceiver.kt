@@ -4,23 +4,24 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import androidx.annotation.RequiresApi
-import com.ejrm.radiocubana.pro.view.MainActivity
+import com.ejrm.radiocubana.pro.services.RadioService
 
 class NotificationReceiver : BroadcastReceiver() {
-    @RequiresApi(Build.VERSION_CODES.O)
-    override fun onReceive(p0: Context?, p1: Intent?) {
-        when (p1?.action) {
-            Constants.PLAY -> if (MainActivity.radioService!!.isPlaying()) PlayPauseRadio() else PlayPauseRadio()
-            Constants.STOP -> {
-                MainActivity.radioService!!.stopRadio()
+    override fun onReceive(context: Context?, intent: Intent?) {
+        val action = when (intent?.action) {
+            Constants.PLAY -> Constants.ACTION_PLAY_PAUSE
+            Constants.STOP -> Constants.ACTION_STOP
+            else -> return
+        }
+        val serviceIntent = Intent(context, RadioService::class.java).apply {
+            this.action = action
+        }
+        context?.let {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                it.startForegroundService(serviceIntent)
+            } else {
+                it.startService(serviceIntent)
             }
         }
     }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun PlayPauseRadio() {
-        MainActivity.radioService!!.controlPlayNotifi()
-    }
-
 }

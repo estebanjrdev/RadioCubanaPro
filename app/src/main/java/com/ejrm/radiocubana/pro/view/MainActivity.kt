@@ -145,17 +145,20 @@ class MainActivity : AppCompatActivity() {
         precargarAnuncioRecompensado()
         
         initListeners()
-        binding.btnPlay.setOnClickListener(View.OnClickListener {
-            if (radioService!!.isPlaying()) {
-                radioService!!.controlPlay()
-                binding.btnPlay.setImageResource(R.drawable.ic_play_24)
-                binding.btnPlay.contentDescription = "Reproducir"
-            } else {
-                radioService!!.controlPlay()
-                binding.btnPlay.setImageResource(R.drawable.ic_pause_24)
-                binding.btnPlay.contentDescription = "Detener"
+        binding.btnPlay.setOnClickListener {
+            radioService?.let { service ->
+                // controlPlayNotifi actualiza tanto la reproducción como la notificación
+                service.controlPlayNotifi()
+                // Actualizar icono del botón según nuevo estado
+                if (service.isPlaying()) {
+                    binding.btnPlay.setImageResource(R.drawable.ic_pause_24)
+                    binding.btnPlay.contentDescription = "Detener"
+                } else {
+                    binding.btnPlay.setImageResource(R.drawable.ic_play_24)
+                    binding.btnPlay.contentDescription = "Reproducir"
+                }
             }
-        })
+        }
 
         binding.btnStop.setOnClickListener(View.OnClickListener {
             radioService!!.stopRadio()
@@ -528,18 +531,23 @@ class MainActivity : AppCompatActivity() {
             Log.d("Anuncios", "3 cambios completados. Anuncio pendiente para próxima pausa natural")
             
             // Intentar mostrar el anuncio después de un delay (pausa micro-natural)
-            // Esto permite que el usuario vea que la emisora cambió correctamente
             binding.root.postDelayed({
                 mostrarAnuncioSiCorresponde()
-            }, 2000) // 2 segundos después del 3er cambio
+            }, 2000)
         }
         
-        val intent = Intent(this, RadioService::class.java)
-        bindService(intent, myConnection, Context.BIND_AUTO_CREATE)
-        intent.putExtra("URL", stations.link)
-        intent.putExtra("NAME", stations.name)
-        intent.putExtra("IMAGE", stations.imagen)
-        startService(intent)
+        val intent = Intent(this, RadioService::class.java).apply {
+            putExtra("URL", stations.link)
+            putExtra("NAME", stations.name)
+            putExtra("IMAGE", stations.imagen)
+        }
+        // Usar startForegroundService en Android 8+ para que el servicio sobreviva en segundo plano
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+        bindService(Intent(this, RadioService::class.java), myConnection, Context.BIND_AUTO_CREATE)
         
         val viewModel: MainViewModel = ViewModelProvider(this).get(MainViewModel::class.java)
         viewModel.getLiveDataStation().observe(this, Observer {
@@ -737,10 +745,26 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         registerReceiver(estadoRed, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
-        
-        // POLÍTICA ADMOB: Mostrar anuncios solo en pausas naturales (al volver a la app)
-        // NO en cada interacción del usuario
         intentarMostrarAnuncioEnPausaNatural()
+        // Escuchar cambios de estado del servicio para sincronizar la UI
+        registerReceiver(playbackStateReceiver, IntentFilter().apply {
+            addAction(com.ejrm.radiocubana.pro.util.Constants.ACTION_PLAYBACK_STOPPED)
+            addAction(com.ejrm.radiocubana.pro.util.Constants.ACTION_PLAYBACK_STATE_CHANGED)
+        })
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try {
+            unregisterReceiver(estadoRed)
+        } catch (e: IllegalArgumentException) {
+            Log.w("MainActivity", "Receiver no registrado: ${e.message}")
+        }
+        try {
+            unregisterReceiver(playbackStateReceiver)
+        } catch (e: IllegalArgumentException) {
+            Log.w("MainActivity", "playbackStateReceiver no registrado: ${e.message}")
+        }
     }
 
    /* override fun onStop() {
@@ -751,6 +775,36 @@ class MainActivity : AppCompatActivity() {
         Log.d("Notifi","onStop")
     }*/
 
+
+    /** Receiver para sincronizar la UI con los cambios de estado del RadioService */
+    private val playbackStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                com.ejrm.radiocubana.pro.util.Constants.ACTION_PLAYBACK_STOPPED -> {
+                    // El servicio se detuvo desde la notificación → ocultar barra de reproducción
+                    binding.layoutReproduction.visibility = LinearLayout.INVISIBLE
+                    if (binding.idFavoriteRed.isVisible) {
+                        binding.idFavoriteRed.isVisible = false
+                        binding.idFavoriteWhite.isVisible = true
+                    }
+                    Log.d("MainActivity", "UI actualizada: reproducción detenida desde notificación")
+                }
+                com.ejrm.radiocubana.pro.util.Constants.ACTION_PLAYBACK_STATE_CHANGED -> {
+                    // Play/pause desde notificación → actualizar icono del botón en la app
+                    val isPlaying = intent.getBooleanExtra(
+                        com.ejrm.radiocubana.pro.util.Constants.EXTRA_IS_PLAYING, false
+                    )
+                    if (isPlaying) {
+                        binding.btnPlay.setImageResource(R.drawable.ic_pause_24)
+                        binding.btnPlay.contentDescription = "Detener"
+                    } else {
+                        binding.btnPlay.setImageResource(R.drawable.ic_play_24)
+                        binding.btnPlay.contentDescription = "Reproducir"
+                    }
+                }
+            }
+        }
+    }
 
     private val estadoRed = object : BroadcastReceiver() {
         override fun onReceive(p0: Context?, p1: Intent?) {
@@ -802,13 +856,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onDestroy() {
         super.onDestroy()
-        radioService?.let {
-            it.showNotification(R.drawable.ic_pause_24)
+        // Solo desvinculamos el binding; el servicio sigue corriendo en segundo plano si está reproduciendo
+        try {
+            unbindService(myConnection)
+        } catch (e: IllegalArgumentException) {
+            Log.w("MainActivity", "Servicio no estaba vinculado: ${e.message}")
         }
-        Log.d("RadioService", "Avtivity Destruida")
+        Log.d("MainActivity", "Activity destruida")
     }
 
     private inner class EmisoraItemClickListener : StationsAdapter.StationsAdapterListener {
