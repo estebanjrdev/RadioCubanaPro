@@ -15,14 +15,14 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.ejrm.radiocubana.pro"
         minSdk 26
-        targetSdk 35
-        versionCode 9
-        versionName "1.6.1"
+        targetSdk 36
+        versionCode 10
+        versionName "1.6.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
